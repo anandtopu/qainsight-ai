@@ -1,0 +1,107 @@
+import { useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, ChevronRight } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import StatusBadge from '@/components/ui/StatusBadge'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import LogViewer from '@/components/ai/LogViewer'
+import AIAnalysisPanel from '@/components/ai/AIAnalysisPanel'
+import { useTestCase } from '@/hooks/useRuns'
+import { formatDuration, formatDateTime } from '@/utils/formatters'
+import { useProjectStore } from '@/store/projectStore'
+
+export default function TestCasePage() {
+  const { runId, testId } = useParams<{ runId: string; testId: string }>()
+  const navigate = useNavigate()
+  const project = useProjectStore(s => s.activeProject)
+  const { data: tc, isLoading } = useTestCase(runId, testId)
+
+  if (isLoading) return <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
+  if (!tc) return <div className="text-slate-400 text-center py-20">Test case not found</div>
+
+  const isFailed = ['FAILED', 'BROKEN'].includes(tc.status)
+
+  return (
+    <div className="space-y-4">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-slate-400">
+        <button onClick={() => navigate('/runs')} className="hover:text-slate-200">Runs</button>
+        <ChevronRight className="h-3 w-3" />
+        <button onClick={() => navigate(`/runs/${runId}`)} className="hover:text-slate-200 font-mono">
+          #{tc.build_number ?? runId?.slice(0, 8)}
+        </button>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-slate-300 truncate max-w-[200px]">{tc.test_name}</span>
+      </div>
+
+      <PageHeader
+        title={tc.test_name}
+        subtitle={tc.full_name ?? tc.class_name}
+        actions={<StatusBadge status={tc.status} />}
+      />
+
+      {/* Test metadata */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Suite',    value: tc.suite_name   },
+          { label: 'Duration', value: formatDuration(tc.duration_ms) },
+          { label: 'Severity', value: tc.severity     },
+          { label: 'Feature',  value: tc.feature      },
+          { label: 'Owner',    value: tc.owner        },
+          { label: 'Run Date', value: formatDateTime(tc.created_at) },
+        ].filter(m => m.value).map(m => (
+          <div key={m.label} className="bg-slate-800/50 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">{m.label}</p>
+            <p className="text-sm text-slate-300 mt-0.5 truncate">{m.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tags */}
+      {tc.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {tc.tags.map((tag: string) => (
+            <span key={tag} className="badge bg-slate-800 text-slate-400 border border-slate-700">{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Split pane: log + AI */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {/* Left: Log viewer */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-300">Stack Trace / Console Output</h3>
+          <LogViewer
+            content={tc.error_message}
+            title={`${tc.class_name ?? 'Test'}.java`}
+          />
+          {tc.has_attachments && (
+            <p className="text-xs text-slate-500">
+              📎 Attachments available — open via Allure report link
+            </p>
+          )}
+        </div>
+
+        {/* Right: AI panel */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-300">
+            AI Root Cause Analysis
+          </h3>
+          {isFailed ? (
+            <AIAnalysisPanel
+              testCaseId={tc.id}
+              testName={tc.test_name}
+              runId={runId!}
+              projectKey={project?.jira_project_key}
+              ocpPodName={tc.ocp_pod_name}
+              ocpNamespace={project?.ocp_namespace}
+            />
+          ) : (
+            <div className="card text-center py-10 text-slate-500">
+              <p className="text-sm">AI analysis is only available for failed or broken tests</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

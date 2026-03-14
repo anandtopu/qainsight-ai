@@ -1,0 +1,240 @@
+name: QA Insight AI — CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # JOB 1: Backend tests and linting
+  # ─────────────────────────────────────────────────────────────
+  backend-test:
+    name: Backend — Test & Lint
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: qainsight_test
+          POSTGRES_USER: qainsight_user
+          POSTGRES_PASSWORD: test_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check app/ tests/
+
+      - name: Type check with mypy
+        run: mypy app/ --ignore-missing-imports
+        continue-on-error: true     # Non-blocking in early phases
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://qainsight_user:test_password@localhost:5432/qainsight_test
+          MONGO_URI: mongodb://localhost:27017
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          LLM_PROVIDER: ollama
+          LLM_MODEL: qwen2.5:7b
+          AI_OFFLINE_MODE: "true"
+          APP_SECRET_KEY: test-secret-key-for-ci
+          JWT_SECRET_KEY: test-jwt-key-for-ci
+        run: |
+          pytest tests/ -v \
+            --tb=short \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junit-xml=test-results.xml
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: backend/test-results.xml
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 2: Frontend tests and type check
+  # ─────────────────────────────────────────────────────────────
+  frontend-test:
+    name: Frontend — Test & Lint
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8000
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 3: Build & push Docker images (only on main branch)
+  # ─────────────────────────────────────────────────────────────
+  build-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: production
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 4: Deploy to dev (only on main branch, after images built)
+  # ─────────────────────────────────────────────────────────────
+  deploy-dev:
+    name: Deploy → Dev
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: github.ref == 'refs/heads/main'
+    environment: development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> $GITHUB_ENV
+
+      - name: Update image tags in kustomization
+        run: |
+          cd k8s/overlays/dev
+          kustomize edit set image \
+            qainsight/backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.sha }} \
+            qainsight/frontend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+
+      - name: Apply manifests
+        run: kubectl apply -k k8s/overlays/dev
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/qainsight-backend -n qainsight-dev --timeout=120s
+          kubectl rollout status deployment/qainsight-frontend -n qainsight-dev --timeout=60s
+
+      - name: Run DB migrations
+        run: |
+          kubectl exec -n qainsight-dev \
+            deployment/qainsight-backend \
+            -- alembic upgrade head

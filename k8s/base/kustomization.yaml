@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: qainsight-ai
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - rbac.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ollama-deployment.yaml
+  - services.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/name: qainsight-ai
+  app.kubernetes.io/version: "3.0.0"
+  app.kubernetes.io/managed-by: kustomize

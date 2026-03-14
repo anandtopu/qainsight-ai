@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qainsight-ingress
+  namespace: qainsight-ai
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # cert-manager TLS (uncomment when cert-manager is installed)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # OpenShift Route alternative: use Route resource instead of Ingress
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - qainsight.yourdomain.com
+  #     secretName: qainsight-tls-cert
+  rules:
+    - host: qainsight.yourdomain.com    # Change to your actual hostname
+      http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: qainsight-backend
+                port:
+                  number: 8000
+          - path: /webhooks/
+            pathType: Prefix
+            backend:
+              service:
+                name: qainsight-backend
+                port:
+                  number: 8000
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: qainsight-backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qainsight-frontend
+                port:
+                  number: 80

@@ -1,0 +1,317 @@
+version: "3.9"
+
+# ============================================================
+# QA Insight AI — Local Development Stack
+# ============================================================
+# Usage:
+#   docker compose up -d --build          # Start all services
+#   docker compose exec backend alembic upgrade head  # Run migrations
+#   docker compose exec ollama ollama pull qwen2.5:7b # Pull LLM
+#   docker compose logs -f backend        # Tail backend logs
+# ============================================================
+
+services:
+
+  # ──────────────────────────────────────────────────────────
+  # DATABASE LAYER
+  # ──────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: qainsight_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-qainsight}
+      POSTGRES_USER: ${POSTGRES_USER:-qainsight_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_local_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qainsight_user} -d ${POSTGRES_DB:-qainsight}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  mongo:
+    image: mongo:7
+    container_name: qainsight_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-qainsight_logs}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: qainsight_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  # ──────────────────────────────────────────────────────────
+  # OBJECT STORAGE
+  # ──────────────────────────────────────────────────────────
+
+  minio:
+    image: minio/minio:latest
+    container_name: qainsight_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-password123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  # MinIO setup: create bucket and configure webhook notification
+  minio-setup:
+    image: minio/mc:latest
+    container_name: qainsight_minio_setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-admin} ${MINIO_SECRET_KEY:-password123};
+      mc mb --ignore-existing local/${MINIO_BUCKET_NAME:-test-telemetry};
+      mc mb --ignore-existing local/qainsight-attachments;
+      mc anonymous set download local/qainsight-attachments;
+      echo 'MinIO setup complete';
+      "
+    networks:
+      - qainsight_net
+
+  # ──────────────────────────────────────────────────────────
+  # AI LAYER — LOCAL LLM (OFFLINE CAPABLE)
+  # ──────────────────────────────────────────────────────────
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: qainsight_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    # Uncomment for NVIDIA GPU acceleration:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: qainsight_chroma
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /chroma/chroma
+      ANONYMIZED_TELEMETRY: "FALSE"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  # ──────────────────────────────────────────────────────────
+  # APPLICATION LAYER
+  # ──────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: qainsight_backend
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app                   # Hot-reload in development
+      - ./backend/app:/app/app
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - MONGO_HOST=mongo
+      - REDIS_HOST=redis
+      - MINIO_ENDPOINT=minio:9000
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-qainsight_user}:${POSTGRES_PASSWORD:-changeme_local_dev}@postgres:5432/${POSTGRES_DB:-qainsight}
+      - MONGO_URI=mongodb://mongo:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qainsight_net
+
+  # Celery worker for background tasks (ingestion, AI analysis)
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: qainsight_worker
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 -Q default,ingestion,ai_analysis
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - MONGO_HOST=mongo
+      - REDIS_HOST=redis
+      - MINIO_ENDPOINT=minio:9000
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-qainsight_user}:${POSTGRES_PASSWORD:-changeme_local_dev}@postgres:5432/${POSTGRES_DB:-qainsight}
+      - MONGO_URI=mongodb://mongo:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - qainsight_net
+
+  # Celery Beat scheduler for periodic tasks
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: qainsight_beat
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - qainsight_net
+
+  # Flower — Celery monitoring UI
+  flower:
+    image: mher/flower:latest
+    container_name: qainsight_flower
+    restart: unless-stopped
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - qainsight_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: qainsight_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src         # Hot-reload in development
+      - ./frontend/public:/app/public
+      - /app/node_modules               # Preserve node_modules from container
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_APP_NAME=QA Insight AI
+      - VITE_APP_VERSION=3.0.0
+    depends_on:
+      - backend
+    networks:
+      - qainsight_net
+
+# ──────────────────────────────────────────────────────────
+# NETWORKS & VOLUMES
+# ──────────────────────────────────────────────────────────
+
+networks:
+  qainsight_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  minio_data:
+  ollama_models:     # Persists downloaded LLM models (4–14GB each)
+  chroma_data:       # Persists embedding vectors

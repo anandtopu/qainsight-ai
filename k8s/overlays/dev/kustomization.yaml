@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+namespace: qainsight-dev
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-backend
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-frontend
+
+configMapGenerator:
+  - name: qainsight-config
+    behavior: merge
+    literals:
+      - APP_ENV=development
+      - LOG_LEVEL=DEBUG
+      - CORS_ORIGINS=http://localhost:3000,https://qainsight-dev.yourdomain.com
+
+images:
+  - name: qainsight/backend
+    newTag: dev-latest
+  - name: qainsight/frontend
+    newTag: dev-latest
