@@ -6,7 +6,7 @@ from functools import lru_cache
 from typing import List, Literal, Optional
 
 from pydantic import validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings  # type: ignore
 
 
 class Settings(BaseSettings):

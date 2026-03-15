@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import StatusBadge from '@/components/ui/StatusBadge'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -90,7 +90,7 @@ export default function TestCasePage() {
             <AIAnalysisPanel
               testCaseId={tc.id}
               testName={tc.test_name}
-              runId={runId!}
+              runId={runId as string}
               projectKey={project?.jira_project_key}
               ocpPodName={tc.ocp_pod_name}
               ocpNamespace={project?.ocp_namespace}

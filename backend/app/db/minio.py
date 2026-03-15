@@ -1,6 +1,6 @@
 """MinIO / S3-compatible object storage client."""
-import aioboto3
-from botocore.client import Config
+import aioboto3  # type: ignore
+from botocore.client import Config  # type: ignore
 from typing import AsyncGenerator
 
 from app.core.config import settings
@@ -23,7 +23,7 @@ def get_s3_client_context():
     )
 
 
-async def list_objects(prefix: str, bucket: str = None) -> list[dict]:
+async def list_objects(prefix: str, bucket: str | None = None) -> list[dict]:
     """List objects in the bucket with a given prefix."""
     bucket = bucket or settings.MINIO_BUCKET_NAME
     objects = []
@@ -35,7 +35,7 @@ async def list_objects(prefix: str, bucket: str = None) -> list[dict]:
     return objects
 
 
-async def get_object_content(key: str, bucket: str = None) -> bytes:
+async def get_object_content(key: str, bucket: str | None = None) -> bytes:
     """Download an object from S3 and return its content."""
     bucket = bucket or settings.MINIO_BUCKET_NAME
     async with get_s3_client_context() as s3:
@@ -44,7 +44,7 @@ async def get_object_content(key: str, bucket: str = None) -> bytes:
             return await stream.read()
 
 
-async def stream_object(key: str, bucket: str = None) -> AsyncGenerator[bytes, None]:
+async def stream_object(key: str, bucket: str | None = None) -> AsyncGenerator[bytes, None]:
     """Stream an object from S3 in chunks."""
     bucket = bucket or settings.MINIO_BUCKET_NAME
     async with get_s3_client_context() as s3:
@@ -54,7 +54,7 @@ async def stream_object(key: str, bucket: str = None) -> AsyncGenerator[bytes, N
                 yield chunk
 
 
-async def put_object(key: str, content: bytes, content_type: str = "application/json", bucket: str = None) -> None:
+async def put_object(key: str, content: bytes, content_type: str = "application/json", bucket: str | None = None) -> None:
     """Upload content to S3."""
     bucket = bucket or settings.MINIO_BUCKET_NAME
     async with get_s3_client_context() as s3:
@@ -66,7 +66,7 @@ async def put_object(key: str, content: bytes, content_type: str = "application/
         )
 
 
-async def get_presigned_url(key: str, expiry: int = 3600, bucket: str = None) -> str:
+async def get_presigned_url(key: str, expiry: int = 3600, bucket: str | None = None) -> str:
     """Generate a presigned URL for temporary object access."""
     bucket = bucket or settings.MINIO_BUCKET_NAME
     async with get_s3_client_context() as s3:

@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-interface Props { content?: string; title?: string; language?: string }
+interface Props { content?: string; title?: string }
 
-export default function LogViewer({ content, title = 'Stack Trace', language = 'java' }: Props) {
+export default function LogViewer({ content, title = 'Stack Trace' }: Props) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {

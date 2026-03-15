@@ -6,25 +6,25 @@ export function useRuns(params?: Record<string, unknown>) {
   const projectId = useProjectStore(s => s.activeProjectId)
   return useSWR(
     projectId ? ['runs', projectId, params] : null,
-    () => runsService.list(projectId!, params),
+    () => runsService.list(projectId as string, params),
     { refreshInterval: 15_000 }
   )
 }
 
 export function useRun(runId?: string) {
-  return useSWR(runId ? ['run', runId] : null, () => runsService.get(runId!))
+  return useSWR(runId ? ['run', runId] : null, () => runsService.get(runId as string))
 }
 
 export function useTestCases(runId?: string, params?: Record<string, unknown>) {
   return useSWR(
     runId ? ['test-cases', runId, params] : null,
-    () => runsService.listTests(runId!, params)
+    () => runsService.listTests(runId as string, params)
   )
 }
 
 export function useTestCase(runId?: string, testId?: string) {
   return useSWR(
     runId && testId ? ['test-case', runId, testId] : null,
-    () => runsService.getTest(runId!, testId!)
+    () => runsService.getTest(runId as string, testId as string)
   )
 }

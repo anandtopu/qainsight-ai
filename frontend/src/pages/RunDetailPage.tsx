@@ -91,6 +91,7 @@ export default function RunDetailPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {(data?.items ?? []).map((tc: any) => (
                   <tr
                     key={tc.id}

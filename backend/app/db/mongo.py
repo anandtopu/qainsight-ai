@@ -1,7 +1,7 @@
 """Async MongoDB client using Motor."""
 from typing import Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase  # type: ignore
 
 from app.core.config import settings
 

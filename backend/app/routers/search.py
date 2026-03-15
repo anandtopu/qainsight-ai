@@ -11,8 +11,8 @@ router = APIRouter(prefix="/api/v1/search", tags=["Search"])
 @router.get("")
 async def search_test_cases(
     q: str = Query(..., min_length=1),
-    project_id: str = None,
-    status: str = None,
+    project_id: str | None = None,
+    status: str | None = None,
     days: int = Query(None, ge=1, le=365),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),

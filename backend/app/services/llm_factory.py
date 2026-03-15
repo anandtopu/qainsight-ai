@@ -37,7 +37,7 @@ def get_llm(
 
     if _provider == "ollama":
         from langchain_ollama import ChatOllama
-        return ChatOllama(
+        return ChatOllama(  # type: ignore
             model=_model,
             base_url=settings.OLLAMA_BASE_URL,
             temperature=_temperature,
@@ -46,30 +46,30 @@ def get_llm(
 
     elif _provider == "lmstudio":
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
+        return ChatOpenAI(  # type: ignore
             model=_model,
             base_url=settings.LMSTUDIO_BASE_URL,
-            api_key="lm-studio",
+            api_key="lm-studio",  # type: ignore
             temperature=_temperature,
             max_tokens=settings.LLM_MAX_TOKENS,
         )
 
     elif _provider == "localai":
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
+        return ChatOpenAI(  # type: ignore
             model=_model,
             base_url=settings.LOCALAI_BASE_URL,
-            api_key="localai",
+            api_key="localai",  # type: ignore
             temperature=_temperature,
             max_tokens=settings.LLM_MAX_TOKENS,
         )
 
     elif _provider == "vllm":
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
+        return ChatOpenAI(  # type: ignore
             model=_model,
             base_url=settings.VLLM_BASE_URL,
-            api_key="vllm",
+            api_key="vllm",  # type: ignore
             temperature=_temperature,
             max_tokens=settings.LLM_MAX_TOKENS,
         )
@@ -78,9 +78,9 @@ def get_llm(
         if settings.AI_OFFLINE_MODE:
             raise ValueError("AI_OFFLINE_MODE=true but LLM_PROVIDER=openai — refusing to call external API")
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
+        return ChatOpenAI(  # type: ignore
             model=_model,
-            api_key=settings.OPENAI_API_KEY,
+            api_key=settings.OPENAI_API_KEY,  # type: ignore
             temperature=_temperature,
             max_tokens=settings.LLM_MAX_TOKENS,
         )
@@ -88,8 +88,8 @@ def get_llm(
     elif _provider == "gemini":
         if settings.AI_OFFLINE_MODE:
             raise ValueError("AI_OFFLINE_MODE=true but LLM_PROVIDER=gemini — refusing to call external API")
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
+        from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
+        return ChatGoogleGenerativeAI(  # type: ignore
             model=_model,
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=_temperature,

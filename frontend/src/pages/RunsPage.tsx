@@ -67,6 +67,7 @@ export default function RunsPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {data.items.map((run: any) => (
                   <tr
                     key={run.id}

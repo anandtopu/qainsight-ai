@@ -2,14 +2,14 @@
 import logging
 from typing import List
 
-import defusedxml.ElementTree as ET
+import defusedxml.ElementTree as ET  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 
 def parse_testng_xml(xml_content: str, test_run_id: str) -> List[dict]:
     """Parse a TestNG surefire XML report into a list of normalised test case dicts."""
-    results = []
+    results: List[dict] = []
     try:
         root = ET.fromstring(xml_content)
     except Exception as e:

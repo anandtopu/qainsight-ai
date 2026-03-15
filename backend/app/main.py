@@ -4,7 +4,7 @@ QA Insight AI — FastAPI Application Entry Point
 import logging
 from contextlib import asynccontextmanager
 
-import structlog
+import structlog  # type: ignore
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -33,10 +33,13 @@ async def lifespan(app: FastAPI):
     )
     # Ensure MongoDB indexes exist
     db = get_mongo_db()
-    await db["raw_allure_json"].create_index("test_case_id", unique=True, background=True)
-    await db["ai_analysis_payloads"].create_index("test_case_id", background=True)
-    await db["ocp_pod_events"].create_index("test_run_id", background=True)
-    logger.info("MongoDB indexes verified")
+    try:
+        await db["raw_allure_json"].create_index("test_case_id", unique=True, background=True)
+        await db["ai_analysis_payloads"].create_index("test_case_id", background=True)
+        await db["ocp_pod_events"].create_index("test_run_id", background=True)
+        logger.info("MongoDB indexes verified")
+    except Exception as e:
+        logger.warning("Failed to create MongoDB indexes", error=str(e))
 
     yield  # Application runs here
 

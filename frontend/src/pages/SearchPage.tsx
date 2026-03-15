@@ -14,6 +14,7 @@ export default function SearchPage() {
   const [searchParams] = useSearchParams()
   const projectId = useProjectStore(s => s.activeProjectId)
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [results, setResults] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -30,6 +31,7 @@ export default function SearchPage() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (query) doSearch(query) }, [])
 
   return (
@@ -71,6 +73,7 @@ export default function SearchPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {results.items.map((r: any) => (
                   <tr
                     key={r.test_case_id}

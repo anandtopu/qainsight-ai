@@ -17,7 +17,7 @@ async def list_runs(
     project_id: str,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    status: str = None,
+    status: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Paginated list of Jenkins build runs for a project."""
@@ -27,7 +27,7 @@ async def list_runs(
     query = query.order_by(TestRun.created_at.desc())
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar()
+    total = count_result.scalar() or 0
 
     query = query.offset((page - 1) * size).limit(size)
     result = await db.execute(query)
@@ -57,8 +57,8 @@ async def list_test_cases(
     run_id: uuid.UUID,
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
-    status: str = None,
-    suite: str = None,
+    status: str | None = None,
+    suite: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Paginated list of test cases within a run, with optional status/suite filters."""
@@ -70,7 +70,7 @@ async def list_test_cases(
     query = query.order_by(TestCase.status, TestCase.test_name)
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar()
+    total = count_result.scalar() or 0
 
     query = query.offset((page - 1) * size).limit(size)
     result = await db.execute(query)
