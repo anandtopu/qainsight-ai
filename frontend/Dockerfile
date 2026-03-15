@@ -1,7 +1,10 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# npm install works whether or not package-lock.json is committed.
+# After running locally once, commit the generated package-lock.json and
+# change this line to `RUN npm ci` for faster, reproducible Docker builds.
+RUN npm install --prefer-offline || npm install
 
 # Development stage
 FROM base AS development
@@ -10,7 +13,7 @@ COPY . .
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
-# Build stage
+# Build stage — Vite handles TypeScript compilation internally via esbuild
 FROM base AS builder
 COPY . .
 RUN npm run build
