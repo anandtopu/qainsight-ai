@@ -16,8 +16,9 @@ motor==3.7.0            # Async MongoDB driver (requires pymongo>=4.9,<4.11)
 pymongo==4.9.2          # Must stay <4.11 to match motor 3.7.0 constraint
 
 # ── Object Storage ───────────────────────────────────────────
+# aioboto3 bundles a compatible boto3 + botocore internally.
+# Do NOT pin boto3 separately — it conflicts with aiobotocore's botocore constraint.
 aioboto3==13.2.0
-boto3==1.35.80
 
 # ── Validation & Settings ────────────────────────────────────
 pydantic==2.10.3
