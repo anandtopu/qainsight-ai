@@ -11,8 +11,6 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Integer, func, select, update
-
-from app.db.minio import get_object_content, list_objects
 from app.db.mongo import Collections, get_mongo_db
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import (
@@ -125,7 +123,6 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
 async def _upsert_test_run(db, sentinel: SentinelFile, minio_prefix: str) -> TestRun:
     """Idempotent upsert of a test run record."""
     from app.models.postgres import Project
-    from sqlalchemy import select
 
     # Find project by id or slug
     result = await db.execute(
@@ -252,7 +249,6 @@ async def _store_raw_allure(case_data: dict, raw_json: dict) -> None:
 
 async def _update_run_aggregates(db, run_id: uuid.UUID) -> None:
     """Recalculate and update aggregated counts on the test run."""
-    from sqlalchemy import func
     result = await db.execute(
         select(
             func.count(TestCase.id).label("total"),
