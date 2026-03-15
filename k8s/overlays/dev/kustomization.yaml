@@ -1,12 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-bases:
+resources:
   - ../../base
 
 namespace: qainsight-dev
 
 patches:
+  # Scale backend to 1 replica in dev
   - patch: |-
       - op: replace
         path: /spec/replicas
@@ -14,6 +15,8 @@ patches:
     target:
       kind: Deployment
       name: qainsight-backend
+
+  # Scale frontend to 1 replica in dev
   - patch: |-
       - op: replace
         path: /spec/replicas
@@ -22,13 +25,19 @@ patches:
       kind: Deployment
       name: qainsight-frontend
 
-configMapGenerator:
-  - name: qainsight-config
-    behavior: merge
-    literals:
-      - APP_ENV=development
-      - LOG_LEVEL=DEBUG
-      - CORS_ORIGINS=http://localhost:3000,https://qainsight-dev.yourdomain.com
+  # Override ConfigMap values for dev environment
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: qainsight-config
+      data:
+        APP_ENV: "development"
+        LOG_LEVEL: "DEBUG"
+        CORS_ORIGINS: "http://localhost:3000,https://qainsight-dev.yourdomain.com"
+    target:
+      kind: ConfigMap
+      name: qainsight-config
 
 images:
   - name: qainsight/backend

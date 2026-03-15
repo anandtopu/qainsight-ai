@@ -14,7 +14,10 @@ resources:
   - services.yaml
   - ingress.yaml
 
-commonLabels:
-  app.kubernetes.io/name: qainsight-ai
-  app.kubernetes.io/version: "3.0.0"
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/name: qainsight-ai
+      app.kubernetes.io/version: "3.0.0"
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+    includeTemplates: true

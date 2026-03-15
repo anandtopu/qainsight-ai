@@ -1,19 +1,26 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-bases:
+resources:
   - ../../base
 
 namespace: qainsight-ai
 
-configMapGenerator:
-  - name: qainsight-config
-    behavior: merge
-    literals:
-      - APP_ENV=production
-      - LOG_LEVEL=INFO
-      - AI_OFFLINE_MODE=true
-      - CORS_ORIGINS=https://qainsight.yourdomain.com
+patches:
+  # Override ConfigMap values for production environment
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: qainsight-config
+      data:
+        APP_ENV: "production"
+        LOG_LEVEL: "INFO"
+        AI_OFFLINE_MODE: "true"
+        CORS_ORIGINS: "https://qainsight.yourdomain.com"
+    target:
+      kind: ConfigMap
+      name: qainsight-config
 
 images:
   - name: qainsight/backend
