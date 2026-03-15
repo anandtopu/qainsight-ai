@@ -39,6 +39,83 @@ QA Insight AI bridges the gap between automated test execution and defect resolu
                               [React Dashboard] → [Jira Tickets]
 ```
 
+## System Architecture
+
+The following diagram illustrates the microservices, data flow, and Agentic AI integration for QA Insight AI:
+
+```mermaid
+graph TD
+    subgraph Client_Layer [Client & Ingestion Layer]
+        UI[React SPA Frontend]
+        SDK[Client SDKs: Java, Python, JS, .NET]
+        CICD[CI/CD: Jenkins, GitHub Actions]
+    end
+
+    subgraph API_Layer [API & Application Layer]
+        FastAPI[FastAPI Backend Service]
+        REST[REST API & Webhook SDK]
+        SSE[SSE / WebSocket Streaming]
+    end
+
+    subgraph AI_Intelligence_Layer [AI & Intelligence Layer]
+        Agent[LangChain ReAct Agent]
+        Factory[LLM Factory Abstraction]
+        Ollama[Ollama Service / Local LLM]
+        CloudLLM[Cloud API: OpenAI / Gemini]
+        RAG[Semantic Search / Embeddings]
+    end
+
+    subgraph Async_Processing_Layer [Async Processing Layer]
+        Redis[Redis Message Broker]
+        Worker[Celery Auto-Analyzer Worker]
+        Gates[Quality Gate Engine]
+    end
+
+    subgraph Data_Persistence_Layer [Data Persistence Layer]
+        PG[(PostgreSQL - Relational)]
+        Mongo[(MongoDB - Unstructured)]
+        MinIO[(MinIO - Object Storage)]
+        Chroma[(ChromaDB - Vector Store)]
+    end
+
+    subgraph External_Integrations [External Integrations]
+        Jira[Bug Tracking: Jira]
+        Slack[Notifications: Slack / Teams]
+    end
+
+    %% Client to API Connections
+    UI -->|HTTP/REST| FastAPI
+    UI -->|Real-Time Data| SSE
+    SDK -->|Test Results| REST
+    CICD -->|Trigger/Webhooks| REST
+    REST --> FastAPI
+    SSE --- FastAPI
+
+    %% API to Storage Connections
+    FastAPI -->|Structured Metrics| PG
+    FastAPI -->|Raw Logs| Mongo
+    FastAPI -->|Artifacts| MinIO
+    FastAPI -->|Enqueue Jobs| Redis
+
+    %% Async Worker Connections
+    Redis -->|Consume Jobs| Worker
+    Worker -->|Update Status| PG
+    Worker -->|Evaluate Rules| Gates
+    Gates -->|GO/NO-GO Webhooks| CICD
+    Gates -->|Alerts| Slack
+
+    %% AI Connections
+    FastAPI -->|Trigger AI Triage| Agent
+    Worker -->|Tier 3 Background Triage| Agent
+    Worker -->|Tier 2 Similarity Matching| RAG
+    RAG <-->|Query Vectors| Chroma
+    Agent -->|Route Provider| Factory
+    Factory -->|Air-Gapped Inference| Ollama
+    Factory -->|Cloud Inference| CloudLLM
+
+    %% External Tool Invocations
+    Agent -->|Auto-Create Defects| Jira
+```
 ## Quick Start (Local Development)
 
 ### Prerequisites
