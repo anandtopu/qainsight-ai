@@ -1,9 +1,8 @@
 """LangChain tool: check historical test flakiness from PostgreSQL."""
 from langchain_core.tools import tool
-from sqlalchemy import select, func, text
+from sqlalchemy import text
 
 from app.db.postgres import AsyncSessionLocal
-from app.models.postgres import TestCaseHistory, TestStatus
 
 
 @tool

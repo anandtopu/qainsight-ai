@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.db.mongo import close_mongo, get_mongo_db
-from app.db.postgres import close_db, engine
+from app.db.postgres import close_db
 from app.routers import analyze, integrations, metrics, projects, runs, search, webhooks
 
 # ── Logging setup ─────────────────────────────────────────────

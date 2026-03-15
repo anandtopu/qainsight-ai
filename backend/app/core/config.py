@@ -5,7 +5,7 @@ All settings loaded from environment variables with sensible defaults.
 from functools import lru_cache
 from typing import List, Literal, Optional
 
-from pydantic import AnyHttpUrl, validator
+from pydantic import validator
 from pydantic_settings import BaseSettings
 
 

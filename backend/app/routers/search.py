@@ -1,10 +1,9 @@
 """Full-text search endpoint."""
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
-from app.models.postgres import TestCase, TestRun
 
 router = APIRouter(prefix="/api/v1/search", tags=["Search"])
 

@@ -10,15 +10,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Integer, func, select, update
 
 from app.db.minio import get_object_content, list_objects
 from app.db.mongo import Collections, get_mongo_db
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import (
     LaunchStatus,
-    Severity,
     TestCase,
     TestCaseHistory,
     TestRun,

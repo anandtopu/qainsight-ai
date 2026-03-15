@@ -2,9 +2,7 @@
 Unit tests for the LangChain ReAct agent.
 All LLM calls and tool invocations are mocked — no API calls, no LLM required.
 """
-import asyncio
 import json
-import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

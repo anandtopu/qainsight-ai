@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
-from app.models.postgres import TestCase, TestRun, TestStatus
+from app.models.postgres import TestCase, TestRun
 from app.models.schemas import TestCaseListResponse, TestRunListResponse
 
 router = APIRouter(prefix="/api/v1/runs", tags=["Test Runs"])

@@ -4,7 +4,6 @@ Switch between Ollama (offline), OpenAI, Gemini, or any compatible provider
 by changing the LLM_PROVIDER environment variable — no agent code changes needed.
 """
 import logging
-from functools import lru_cache
 from typing import Optional
 
 from langchain_core.language_models import BaseChatModel

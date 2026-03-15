@@ -1,8 +1,7 @@
 """MinIO webhook handler — receives ObjectCreated events and queues ingestion."""
-import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 
 from app.models.schemas import MinIOWebhookEvent, SentinelFile
 from app.worker.tasks import ingest_test_run

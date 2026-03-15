@@ -83,7 +83,7 @@ def take_coverage_snapshot():
 
     async def _run():
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Project).where(Project.is_active == True))
+            result = await db.execute(select(Project).where(Project.is_active.is_(True)))
             projects = result.scalars().all()
             logger.info(f"Taking coverage snapshot for {len(projects)} projects")
             # Coverage snapshot logic would go here

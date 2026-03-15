@@ -28,7 +28,8 @@ async def create_jira_defect(
     ai_result = await db.execute(
         select(AIAnalysis).where(AIAnalysis.test_case_id == tc.id)
     )
-    ai = ai_result.scalar_one_or_none()
+    # ai_analysis fetched for potential future use (logging, enrichment)
+    ai_result.scalar_one_or_none()
 
     stack_trace = tc.error_message or "Stack trace not available"
     dashboard_link = f"http://localhost:3000/runs/{request.run_id}/tests/{tc.id}"

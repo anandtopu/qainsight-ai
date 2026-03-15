@@ -5,7 +5,6 @@ to produce a structured root-cause analysis for any test failure.
 """
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Optional
 

@@ -1,6 +1,4 @@
 """AI triage analysis endpoint."""
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -1,7 +1,6 @@
 """Jira REST API v3 client with ADF payload builder."""
 import base64
 import logging
-from typing import Optional
 
 import httpx
 
