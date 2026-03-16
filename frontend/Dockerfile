@@ -15,6 +15,8 @@ CMD ["npm", "run", "dev"]
 
 # Build stage — Vite handles TypeScript compilation internally via esbuild
 FROM base AS builder
+ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 COPY . .
 RUN npm run build
 
