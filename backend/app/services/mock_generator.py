@@ -2,10 +2,9 @@ import json
 import random
 import uuid
 import time
-from datetime import datetime, timezone
 from typing import List, Tuple
 
-def generate_mock_allure_results(num_tests: int, failure_rate: float, project_id: str, build_number: int) -> List[Tuple[str, bytes]]:
+def generate_mock_allure_results(num_tests: int, failure_rate: float, project_id: str, build_number: str) -> List[Tuple[str, bytes]]:
     """Generates synthetic Allure *-result.json files. Returns a list of (Key, Bytes)."""
     files = []
     
@@ -76,7 +75,7 @@ def generate_mock_allure_results(num_tests: int, failure_rate: float, project_id
         
     return files
 
-def generate_mock_testng_results(num_tests: int, failure_rate: float, project_id: str, build_number: int) -> List[Tuple[str, bytes]]:
+def generate_mock_testng_results(num_tests: int, failure_rate: float, project_id: str, build_number: str) -> List[Tuple[str, bytes]]:
     """Generates synthetic TestNG XML files. Returns a list of (Key, Bytes)."""
     
     import xml.etree.ElementTree as ET
@@ -99,7 +98,7 @@ def generate_mock_testng_results(num_tests: int, failure_rate: float, project_id
             failure = ET.SubElement(testcase, "failure", message="Element not found exceptions")
             failure.text = f"org.openqa.selenium.NoSuchElementException: Unable to locate element\n\tat com.example.tests.{cls_name}.{test_name}({cls_name}.java:{random.randint(20, 100)})"
         elif random.random() < 0.05:
-            skipped = ET.SubElement(testcase, "skipped")
+            ET.SubElement(testcase, "skipped")
             
     # Pretty print XML
     xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="    ")
