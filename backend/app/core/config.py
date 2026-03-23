@@ -34,7 +34,11 @@ class Settings(BaseSettings):
     MONGO_DB: str = "qainsight_logs"
     MONGO_URI: str = "mongodb://localhost:27017"
 
-    # ── MinIO (S3-compatible) ────────────────────────────────
+    # ── Storage (S3 / MinIO / Local) ─────────────────────────
+    STORAGE_BACKEND: Literal["minio", "s3", "local"] = "minio"
+    LOCAL_STORAGE_PATH: str = "/tmp/qainsight_data"
+    
+    # ── MinIO / S3 Settings ──────────────────────────────────
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "admin"
     MINIO_SECRET_KEY: str = "password123"

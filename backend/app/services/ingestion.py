@@ -12,7 +12,7 @@ from typing import Optional
 
 from sqlalchemy import Integer, func, select, update
 
-from app.db.minio import get_object_content, list_objects
+from app.db.storage import get_storage_provider
 from app.db.mongo import Collections, get_mongo_db
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import (
@@ -53,10 +53,11 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
         try:
             # ── Get or create test run ─────────────────────
             run = await _upsert_test_run(db, sentinel, minio_prefix)
+            storage = get_storage_provider()
 
             # ── Process Allure results ─────────────────────
             allure_prefix = f"{minio_prefix}allure/"
-            allure_objects = await list_objects(allure_prefix)
+            allure_objects = await storage.list_objects(allure_prefix)
             result_files = [obj for obj in allure_objects if obj["Key"].endswith("-result.json")]
 
             logger.info(f"Found {len(result_files)} Allure result files")
@@ -64,7 +65,7 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
             parsed_cases = []
             for obj in result_files:
                 try:
-                    content = await get_object_content(obj["Key"])
+                    content = await storage.get_object_content(obj["Key"])
                     result_data = json.loads(content)
                     parsed = parse_allure_result(result_data, str(run.id), obj["Key"])
                     if parsed:
@@ -77,12 +78,12 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
 
             # ── Process TestNG XML ─────────────────────────
             testng_prefix = f"{minio_prefix}testng/"
-            testng_objects = await list_objects(testng_prefix)
+            testng_objects = await storage.list_objects(testng_prefix)
             xml_files = [obj for obj in testng_objects if obj["Key"].endswith(".xml")]
 
             for obj in xml_files:
                 try:
-                    content = await get_object_content(obj["Key"])
+                    content = await storage.get_object_content(obj["Key"])
                     xml_cases = parse_testng_xml(content.decode("utf-8"), str(run.id))
                     # Merge with Allure data (Allure takes precedence for enrichment)
                     for case in xml_cases:
