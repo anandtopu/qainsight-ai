@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
-from app.routers import analyze, integrations, metrics, projects, runs, search, webhooks
+from app.routers import analyze, integrations, metrics, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -77,6 +77,7 @@ app.include_router(metrics.router)
 app.include_router(search.router)
 app.include_router(analyze.router)
 app.include_router(integrations.router)
+app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
 
 
 # ── Health check ──────────────────────────────────────────────
