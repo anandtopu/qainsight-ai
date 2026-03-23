@@ -27,7 +27,7 @@ export default function TestCasePage() {
         <button onClick={() => navigate('/runs')} className="hover:text-slate-200">Runs</button>
         <ChevronRight className="h-3 w-3" />
         <button onClick={() => navigate(`/runs/${runId}`)} className="hover:text-slate-200 font-mono">
-          #{tc.build_number ?? runId?.slice(0, 8)}
+          #{runId?.slice(0, 8)}
         </button>
         <ChevronRight className="h-3 w-3" />
         <span className="text-slate-300 truncate max-w-[200px]">{tc.test_name}</span>

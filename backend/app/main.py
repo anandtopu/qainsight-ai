@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
-from app.routers import analyze, integrations, metrics, projects, runs, search, webhooks, debug
+from app.routers import analyze, analytics, auth, integrations, live, metrics, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -71,12 +71,15 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(webhooks.router)
+app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(runs.router)
 app.include_router(metrics.router)
 app.include_router(search.router)
 app.include_router(analyze.router)
+app.include_router(analytics.router)
 app.include_router(integrations.router)
+app.include_router(live.router)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
 
 

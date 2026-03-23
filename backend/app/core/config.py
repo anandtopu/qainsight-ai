@@ -5,8 +5,8 @@ All settings loaded from environment variables with sensible defaults.
 from functools import lru_cache
 from typing import List, Literal, Optional
 
-from pydantic import validator
-from pydantic_settings import BaseSettings  # type: ignore
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict  # type: ignore
 
 
 class Settings(BaseSettings):
@@ -112,7 +112,15 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: Literal["json", "text"] = "json"
 
-    @validator("CORS_ORIGINS", pre=True)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
@@ -129,11 +137,6 @@ class Settings(BaseSettings):
     @property
     def chroma_host_url(self) -> str:
         return f"http://{self.CHROMA_HOST}:{self.CHROMA_PORT}"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
 
 
 @lru_cache()

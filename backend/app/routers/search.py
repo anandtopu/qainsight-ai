@@ -1,4 +1,6 @@
 """Full-text search endpoint."""
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,8 +37,8 @@ async def search_test_cases(
         params["status"] = status.upper()
 
     if days:
-        conditions.append("tc.created_at >= NOW() - INTERVAL ':days days'")
-        params["days"] = days
+        conditions.append("tc.created_at >= :period_start")
+        params["period_start"] = datetime.now(timezone.utc) - timedelta(days=days)
 
     where_clause = " AND ".join(conditions)
     query = text(f"""

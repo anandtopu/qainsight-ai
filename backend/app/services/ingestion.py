@@ -29,6 +29,11 @@ from app.services.ocp_client import get_pod_metadata
 
 logger = logging.getLogger(__name__)
 
+# Import WebSocket manager lazily to avoid circular imports at module load time
+def _get_ws_manager():
+    from app.routers.live import manager as ws_manager
+    return ws_manager
+
 
 def make_test_fingerprint(test_name: str, class_name: Optional[str]) -> str:
     """Create a stable hash identifying a unique test across runs."""
@@ -116,6 +121,22 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
 
             await db.commit()
             logger.info(f"Ingestion complete: {len(parsed_cases)} test cases processed")
+
+            # Broadcast live update via WebSocket
+            try:
+                ws = _get_ws_manager()
+                await ws.broadcast(str(sentinel.project_id), {
+                    "type": "run_completed",
+                    "run_id": str(run.id),
+                    "build_number": run.build_number,
+                    "total_tests": run.total_tests,
+                    "passed_tests": run.passed_tests,
+                    "failed_tests": run.failed_tests,
+                    "pass_rate": run.pass_rate,
+                    "status": run.status.value if run.status else None,
+                })
+            except Exception as ws_err:
+                logger.debug(f"WS broadcast skipped: {ws_err}")
 
         except Exception as e:
             await db.rollback()

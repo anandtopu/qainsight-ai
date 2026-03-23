@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 from app.models.postgres import Defect, TestCase, TestRun, TestStatus
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ async def get_dashboard_summary(db: AsyncSession, project_id: str, days: int = 7
 
 async def get_trend_data(db: AsyncSession, project_id: str, days: int = 7) -> list:
     """Return daily pass/fail/skip breakdown for the trend chart."""
+    period_start = datetime.now(timezone.utc) - timedelta(days=days)
     query = text("""
         SELECT
             DATE_TRUNC('day', tr.created_at) AS day,
@@ -113,11 +115,11 @@ async def get_trend_data(db: AsyncSession, project_id: str, days: int = 7) -> li
             COALESCE(AVG(tr.pass_rate), 0)     AS pass_rate
         FROM test_runs tr
         WHERE tr.project_id = :project_id
-          AND tr.created_at >= NOW() - INTERVAL ':days days'
+          AND tr.created_at >= :period_start
         GROUP BY day
         ORDER BY day ASC
     """)
-    result = await db.execute(query, {"project_id": str(project_id), "days": days})
+    result = await db.execute(query, {"project_id": str(project_id), "period_start": period_start})
     rows = result.fetchall()
 
     return [
