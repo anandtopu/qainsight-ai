@@ -1,13 +1,11 @@
 """Analytics endpoints: flaky tests, failure clusters, coverage, defects."""
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
-from app.models.postgres import AIAnalysis, Defect, TestCase, TestCaseHistory, TestRun
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 
