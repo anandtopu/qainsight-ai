@@ -24,6 +24,7 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 | **Offline AI** | Fully air-gapped with Ollama (qwen2.5, llama3, mistral) |
 | **Dashboards** | Pass/fail trends, coverage heatmaps, flaky leaderboard, defect burn-down |
 | **Quality Gates** | Automated GO/NO-GO feedback to Jenkins/GitHub Actions |
+| **Security** | JWT-based authentication with role-based access control (RBAC) |
 | **MCP Server** | 20 tools · 10 resources · 6 prompt workflows for AI assistant integration |
 | **Search** | Full-text + semantic RAG search across all test history |
 | **Integrations** | Jira, Splunk, OpenShift API, Slack, Teams, GitHub Issues |
@@ -70,7 +71,7 @@ graph TD
         FastAPI[FastAPI Backend Service]
         REST[REST API & Webhook SDK]
         SSE[SSE / WebSocket Streaming]
-        Auth[Authentication & Security]
+        Auth[JWT Authentication & Security Middleware]
         Analytics[Analytics Engine]
         MockGen[Mock Data Generator]
     end
@@ -184,7 +185,7 @@ docker compose exec ollama ollama pull nomic-embed-text
 ### 5. Access Services
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Dashboard | http://localhost:3000 | — |
+| Dashboard | http://localhost:3000 | Register via API Docs first |
 | API Docs | http://localhost:8000/docs | — |
 | MinIO Console | http://localhost:9001 | admin / password123 |
 | Flower (Celery) | http://localhost:5555 | — |
@@ -238,11 +239,11 @@ qainsight-ai/
 │   └── Dockerfile
 ├── frontend/                   # React + Vite SPA
 │   ├── src/
-│   │   ├── pages/              # Route-level page components
-│   │   ├── components/         # Reusable UI components
-│   │   ├── services/           # API client layer
+│   │   ├── pages/              # Route-level page components (incl. LoginPage)
+│   │   ├── components/         # Reusable UI components & ProtectedRoute
+│   │   ├── services/           # API client layer with auth interceptors
 │   │   ├── hooks/              # Custom React hooks (SWR)
-│   │   ├── store/              # Zustand state management
+│   │   ├── store/              # Zustand state management (authStore)
 │   │   └── utils/              # Helpers and formatters
 │   ├── package.json
 │   └── Dockerfile
@@ -352,6 +353,7 @@ Key variables:
 - `LLM_PROVIDER` — `ollama` (default, offline) | `openai` | `gemini`
 - `LLM_MODEL` — `qwen2.5:7b` (default for Ollama)
 - `AI_OFFLINE_MODE` — `true` enforces local-only inference
+- `JWT_SECRET_KEY` — randomly generated secret for encoding authentication tokens
 - `MCP_USERNAME` / `MCP_PASSWORD` — credentials for the containerised MCP service
 
 ## License

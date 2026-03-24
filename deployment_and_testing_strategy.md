@@ -13,6 +13,7 @@ Local deployment uses Docker Compose to run the full stack, including the local 
 * **Environment Configuration**: 
   * Clone the repository.
   * Run `cp .env.example .env` and configure any specific local constraints.
+  * Generate a JWT secret: `echo "JWT_SECRET_KEY: $(openssl rand -hex 32)"` and add it to `.env`.
   * Ensure ports `3000` (Frontend), `8000` (Backend API), `5432` (Postgres), `27017` (Mongo), `6379` (Redis), `9000/9001` (MinIO), and `11434` (Ollama) are free on your machine.
 
 ### 2. Deployment Execution
@@ -32,7 +33,8 @@ To ensure the local application is error-free, follow these testing phases:
   * Ensure the MinIO console is accessible at `http://localhost:9001` (admin/password123).
   * Check the Celery worker and broker using Flower at `http://localhost:5555`.
 * **Manual UI & Integration Check**:
-  * Open `http://localhost:3000` in your browser.
+  * Create a user via the Swagger API Docs (`http://localhost:8000/docs#/Authentication/register_api_v1_auth_register_post`).
+  * Open `http://localhost:3000` in your browser and log in with the newly created credentials.
   * Create a sample test run to verify the async ingestion worker and database layers (Postgres & Mongo) operate successfully.
 
 ---

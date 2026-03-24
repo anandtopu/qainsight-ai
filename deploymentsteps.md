@@ -482,8 +482,8 @@ Expected response:
 
 Open your browser and navigate to:
 
-- **Dashboard:** `http://<your VM IP>` (e.g., `http://34.123.45.67`)
-- **API Docs:** `http://<your VM IP>:8000/docs`
+- **API Docs:** `http://<your VM IP>:8000/docs`. Under the `Authentication` section, expand `POST /api/v1/auth/register`, click "Try it out", and create your first administrator/test user.
+- **Dashboard:** `http://<your VM IP>` (e.g., `http://34.123.45.67`). You will be redirected to the Login page. Use the credentials you just created.
 
 You should see the QA Insight AI dashboard.
 
