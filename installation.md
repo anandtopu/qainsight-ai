@@ -69,7 +69,7 @@ gcloud compute firewall-rules create qainsight-allow-web \
 ```
 
 > **Port 8002** is the MCP SSE server — open only if you need remote AI assistant access.
-> For local-only Claude Desktop use (stdio mode), do not expose port 8002.
+> For local-only MCP Client use (stdio mode), do not expose port 8002.
 
 ### 3.2 Install Docker + Compose on VM
 
@@ -126,9 +126,9 @@ Open:
 - `http://<VM_IP>:8000/docs` — backend API docs
 - `http://<VM_IP>:8002/sse` — MCP SSE endpoint (for AI assistant integration)
 
-### 3.4 Connect Claude Desktop to the VM-hosted MCP
+### 3.4 Connect your AI Assistant to the VM-hosted MCP
 
-On your local machine, add to `~/.claude/claude_desktop_config.json`:
+On your local machine, add to your MCP client configuration:
 
 ```json
 {

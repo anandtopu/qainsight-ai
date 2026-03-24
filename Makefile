@@ -140,7 +140,7 @@ setup-minio: ## Manually configure MinIO bucket and webhook
 mcp-install: ## Install MCP server Python dependencies
 	cd mcp && pip install -r requirements.txt
 
-mcp-start: ## Start MCP server (stdio mode — for Claude Desktop)
+mcp-start: ## Start MCP server (stdio mode — for MCP Clients)
 	cd mcp && python server.py --transport stdio
 
 mcp-sse: ## Start MCP server (SSE mode — for web/CI clients on port 8002)

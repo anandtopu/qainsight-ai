@@ -1,7 +1,7 @@
 """
 MCP Prompt Templates — reusable investigation workflows.
 
-Prompts chain multiple tools into a structured workflow. Claude expands them
+Prompts chain multiple tools into a structured workflow. AI Assistants expand them
 into tool calls automatically when a user invokes the prompt.
 """
 

@@ -166,7 +166,7 @@ gcloud run deploy qainsight-frontend \
 
 ## 8) Build and deploy MCP server (optional)
 
-The MCP server exposes QA Insight AI to Claude Desktop, IDE plugins, and CI pipelines.
+The MCP server exposes QA Insight AI to AI Desktop Clients, IDE plugins, and CI pipelines.
 Deploying it to Cloud Run enables SSE transport for hosted/CI clients.
 
 Build the MCP image:
@@ -210,9 +210,9 @@ export MCP_URL=$(gcloud run services describe qainsight-mcp \
 echo "MCP SSE endpoint: ${MCP_URL}/sse"
 ```
 
-### Connecting Claude Desktop to the hosted MCP
+### Connecting your AI Assistant to the hosted MCP
 
-Add to `~/.claude/claude_desktop_config.json`:
+Add to your MCP client configuration:
 
 ```json
 {
@@ -249,4 +249,4 @@ Open frontend URL from Cloud Run service output.
 - Use external managed services and map them in `infra/cloudrun/backend.env`.
 - Async workers (`Celery`) are optional for initial testing; many dashboard paths can still be validated without them.
 - The MCP server is stateless — it proxies all requests to the backend. No database access required.
-- MCP in stdio mode (Claude Desktop) does not require a Cloud Run deployment — run `make mcp-start` locally against the hosted backend URL.
+- MCP in stdio mode (MCP Clients) does not require a Cloud Run deployment — run `make mcp-start` locally against the hosted backend URL.

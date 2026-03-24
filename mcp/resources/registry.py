@@ -1,10 +1,10 @@
 """
-MCP Resources — readable data objects that Claude can inspect as context.
+MCP Resources — readable data objects that AI Assistants can inspect as context.
 
 URI scheme:  qainsight://<entity>/<id>/<sub-resource>
 
 Resources differ from tools: they are read passively as background context
-rather than being explicitly invoked. Claude reads them automatically when
+rather than being explicitly invoked. AI Assistants read them automatically when
 the URI appears in conversation.
 """
 

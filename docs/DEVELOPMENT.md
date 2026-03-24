@@ -20,7 +20,7 @@ make pull-llm        # qwen2.5:7b + nomic-embed-text
 # 5. Simulate a test run
 make simulate-upload
 
-# 6. Set up MCP server (optional — for Claude Desktop integration)
+# 6. Set up MCP server (optional — for AI Assistant integration)
 make mcp-install
 ```
 
@@ -214,7 +214,7 @@ qainsight-ai/
 2. Add a function decorated with `@mcp.tool()` inside the `register(mcp)` function
 3. Call the backend via `await api.get(...)` or `await api.post(...)`
 4. Register the module in `mcp/server.py`: `from tools import <module>` + `<module>.register(mcp)`
-5. Test manually: `make mcp-start`, then ask Claude to call the tool
+5. Test manually: `make mcp-start`, then ask the AI Assistant to call the tool
 
 ### Running only backend in hot-reload mode (without Docker)
 
@@ -241,7 +241,7 @@ npm run dev
 cd mcp
 pip install -r requirements.txt
 cp .env.example .env    # fill in QAINSIGHT_USERNAME and QAINSIGHT_PASSWORD
-python server.py --transport stdio   # for Claude Desktop
+python server.py --transport stdio   # for MCP Clients
 python server.py --transport sse     # for SSE clients on :8002
 ```
 

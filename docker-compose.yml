@@ -303,7 +303,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # MCP SERVER — AI assistant integration (SSE transport)
   # ──────────────────────────────────────────────────────────
-  # Primary use: stdio (Claude Desktop) — run `make mcp-start` locally.
+  # Primary use: stdio (Desktop Clients) — run `make mcp-start` locally.
   # This container enables SSE transport for CI pipelines and web clients.
 
   mcp:

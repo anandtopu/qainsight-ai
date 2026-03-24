@@ -13,7 +13,7 @@
 
 QA Insight AI bridges the gap between automated test execution and defect resolution. It ingests test results from 50+ frameworks, applies a LangChain ReAct agent (running locally via Ollama — **no internet required**) to correlate failures across stack traces, Splunk logs, and Kubernetes pod events, and pushes structured root-cause summaries to Jira in one click.
 
-It also ships a first-class **MCP (Model Context Protocol) server** so AI assistants (Claude Desktop, IDE plugins, CI pipelines) can query test quality, investigate failures, and gate releases through natural-language conversations — no browser required.
+It also ships a first-class **MCP (Model Context Protocol) server** so AI assistants (AI Desktop Clients, IDE plugins, CI pipelines) can query test quality, investigate failures, and gate releases through natural-language conversations — no browser required.
 
 ## Key Features
 
@@ -44,7 +44,7 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
                    ↓                                             ↓
          [React Dashboard] → [Jira Tickets]          [MCP Server :8002]
                                                            ↓
-                                               [Claude Desktop / IDE / CI]
+                                               [MCP Client / IDE / CI]
 ```
 
 ## System Architecture
@@ -57,7 +57,7 @@ graph TD
         UI[React SPA Frontend]
         SDK[Client SDKs: Java, Python, JS, .NET]
         CICD[CI/CD: Jenkins, GitHub Actions]
-        MCP_CLIENT[AI Clients: Claude Desktop / IDE / CI]
+        MCP_CLIENT[AI Clients: MCP Client / IDE / CI]
     end
 
     subgraph MCP_Layer [MCP Integration Layer]
@@ -191,15 +191,15 @@ docker compose exec ollama ollama pull nomic-embed-text
 | Flower (Celery) | http://localhost:5555 | — |
 | MCP SSE Server | http://localhost:8002/sse | — |
 
-### 6. Connect the MCP Server (Claude Desktop)
+### 6. Connect the MCP Server (AI Assistant)
 
-Install dependencies and configure Claude Desktop:
+Install dependencies and configure your MCP client:
 
 ```bash
 make mcp-install
 ```
 
-Add to `~/.claude/claude_desktop_config.json`:
+Add to your MCP client configuration (e.g., Claude Desktop, Cursor, etc.):
 
 ```json
 {
@@ -217,7 +217,7 @@ Add to `~/.claude/claude_desktop_config.json`:
 }
 ```
 
-Then ask Claude: *"List all QA projects"* or *"Check release readiness for project-alpha"*.
+Then ask the AI Assistant: *"List all QA projects"* or *"Check release readiness for project-alpha"*.
 
 ## Project Structure
 
@@ -288,7 +288,7 @@ make lint
 # Build production images
 make build
 
-# MCP server (local — for Claude Desktop)
+# MCP server (local — for AI Assistants)
 make mcp-install && make mcp-start
 
 # MCP server (SSE — for CI/web clients)

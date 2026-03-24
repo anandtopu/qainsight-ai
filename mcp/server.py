@@ -3,16 +3,16 @@ QA Insight AI — MCP Server
 ==========================
 
 Exposes 20 tools, 10 resources, and 6 prompt templates to MCP clients
-(Claude Desktop, IDEs, CI pipelines).
+(AI Desktop Clients, IDEs, CI pipelines).
 
 Transport: stdio (default) or SSE
 Auth:      JWT via QAINSIGHT_USERNAME / QAINSIGHT_PASSWORD env vars
 
 Usage:
-    python server.py                    # stdio (Claude Desktop)
+    python server.py                    # stdio (Desktop Client)
     python server.py --transport sse    # SSE on port 8001
 
-Claude Desktop config (~/.claude/claude_desktop_config.json):
+MCP Client config:
     {
       "mcpServers": {
         "qainsight": {
