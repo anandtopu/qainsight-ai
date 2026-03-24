@@ -40,7 +40,6 @@ def _build_html(
     colour = _STATUS_COLOURS.get(event_type, "#3b82f6")
     icon = _HEADER_ICONS.get(event_type, "🔔")
     dashboard_url = metadata.get("dashboard_url", "#")
-    run_id = metadata.get("run_id", "")
     build_number = metadata.get("build_number", "")
     project_name = metadata.get("project_name", "")
     pass_rate = metadata.get("pass_rate")

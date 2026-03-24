@@ -1,12 +1,11 @@
 """Pydantic v2 request/response schemas for all API endpoints."""
 import uuid
 from datetime import datetime
-from enum import Enum
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, EmailStr, Field
 
-from app.models.postgres import FailureCategory, LaunchStatus, NotificationChannel, NotificationEventType, Severity, TestStatus, UserRole
+from app.models.postgres import FailureCategory, LaunchStatus, NotificationChannel, Severity, TestStatus, UserRole
 
 
 # ── Base ─────────────────────────────────────────────────────
