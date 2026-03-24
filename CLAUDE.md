@@ -132,25 +132,88 @@ qainsight-ai/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app factory + router registration
-│   │   ├── core/config.py       # Pydantic BaseSettings (all env vars)
-│   │   ├── db/                  # postgres.py, mongo.py, minio.py
-│   │   ├── models/              # postgres.py (ORM), schemas.py (Pydantic)
-│   │   ├── routers/             # webhooks, projects, runs, metrics, search, analyze
-│   │   ├── services/            # agent, ingestion, parsers, llm_factory, jira_client
-│   │   ├── tools/               # LangChain agent tools (5 tools)
-│   │   └── worker/              # celery_app.py + tasks.py
+│   │   ├── core/
+│   │   │   ├── config.py        # Pydantic BaseSettings (all env vars) — uses Pydantic v2 SettingsConfigDict
+│   │   │   └── security.py      # JWT helpers (create_access_token, verify_token)
+│   │   ├── db/
+│   │   │   ├── postgres.py      # Async SQLAlchemy engine + session factory
+│   │   │   ├── mongo.py         # Motor async MongoDB client
+│   │   │   ├── minio.py         # aioboto3 MinIO/S3 client
+│   │   │   └── storage.py       # STORAGE_BACKEND router (minio | local)
+│   │   ├── models/
+│   │   │   ├── postgres.py      # SQLAlchemy ORM models
+│   │   │   └── schemas.py       # Pydantic v2 request/response schemas
+│   │   ├── routers/
+│   │   │   ├── webhooks.py      # POST /webhook/ingest — test result ingestion entry point
+│   │   │   ├── projects.py      # CRUD for projects
+│   │   │   ├── runs.py          # Test run listing and detail
+│   │   │   ├── metrics.py       # Dashboard KPI metrics
+│   │   │   ├── search.py        # Full-text search across test cases
+│   │   │   ├── analyze.py       # Trigger AI root-cause analysis
+│   │   │   ├── analytics.py     # /flaky-tests, /failure-categories, /top-failing, /coverage, /defects, /ai-summary
+│   │   │   ├── auth.py          # POST /auth/register, /auth/login (JWT), GET /auth/me
+│   │   │   ├── live.py          # WebSocket /ws/live/{project_id} (ConnectionManager)
+│   │   │   ├── integrations.py  # External integrations (Jira, etc.)
+│   │   │   └── debug.py         # Dev-only debug endpoints
+│   │   ├── services/
+│   │   │   ├── agent.py         # LangChain ReAct agent (5 tools, AgentExecutor with timeout)
+│   │   │   ├── ingestion.py     # Orchestrates parser → DB persistence
+│   │   │   ├── metrics_service.py  # Analytics queries (uses Python-side datetime arithmetic, not SQL INTERVAL literals)
+│   │   │   ├── llm_factory.py   # LLM provider switcher (ollama/openai/gemini/lmstudio/vllm)
+│   │   │   ├── jira_client.py   # Jira REST API integration
+│   │   │   ├── allure_parser.py # Allure JSON report parser
+│   │   │   ├── testng_parser.py # TestNG XML parser
+│   │   │   ├── ocp_client.py    # OpenShift/K8s event client
+│   │   │   └── mock_generator.py # Test data generator for dev
+│   │   ├── tools/               # LangChain agent tools (one file per tool)
+│   │   │   ├── fetch_stacktrace.py
+│   │   │   ├── fetch_rest_payload.py
+│   │   │   ├── query_splunk.py
+│   │   │   ├── check_flakiness.py
+│   │   │   └── analyze_ocp.py
+│   │   └── worker/
+│   │       ├── celery_app.py    # Celery app + Redis broker config
+│   │       └── tasks.py         # Background tasks (AI triage, quality gates)
 │   ├── migrations/              # Alembic migration versions
 │   ├── tests/                   # pytest (conftest.py + test files)
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/               # OverviewPage, RunsPage, TestCasePage, SearchPage, etc.
-│   │   ├── components/          # ui/, charts/, layout/, ai/
-│   │   ├── services/            # Axios API client modules
-│   │   ├── hooks/               # SWR data-fetching hooks
-│   │   ├── store/               # Zustand (projectStore.ts)
-│   │   └── utils/               # formatters.ts
+│   │   ├── App.tsx              # Router (react-router-dom) + layout
+│   │   ├── main.tsx             # Vite entry point
+│   │   ├── pages/
+│   │   │   ├── OverviewPage.tsx       # Main dashboard KPIs
+│   │   │   ├── ProjectsPage.tsx       # Project list + New Project modal
+│   │   │   ├── RunsPage.tsx           # Test run listing
+│   │   │   ├── RunDetailPage.tsx      # Per-run test case breakdown
+│   │   │   ├── TestCasePage.tsx       # Individual test case + AI panel
+│   │   │   ├── SearchPage.tsx         # Full-text search UI
+│   │   │   ├── TrendsPage.tsx         # Period-based KPI trend charts
+│   │   │   ├── FailureAnalysisPage.tsx # Flaky leaderboard + failure category pie
+│   │   │   ├── CoveragePage.tsx       # Suite coverage table + stacked bar
+│   │   │   ├── DefectsPage.tsx        # Paginated defects + Jira links
+│   │   │   └── SettingsPage.tsx       # App settings
+│   │   ├── components/
+│   │   │   ├── ui/              # LoadingSpinner, StatusBadge, MetricCard, PageHeader, EmptyState, Pagination
+│   │   │   ├── charts/          # PassRateGauge, DefectDonut, TrendChart
+│   │   │   ├── layout/          # AppLayout, Sidebar, TopBar
+│   │   │   └── ai/              # AIAnalysisPanel, LogViewer
+│   │   ├── services/
+│   │   │   ├── api.ts           # Axios base instance (baseURL from VITE_API_URL)
+│   │   │   ├── projectsService.ts
+│   │   │   ├── runsService.ts
+│   │   │   ├── metricsService.ts
+│   │   │   ├── analyticsService.ts  # Calls /analytics/* endpoints
+│   │   │   ├── aiService.ts
+│   │   │   └── searchService.ts
+│   │   ├── hooks/
+│   │   │   ├── useRuns.ts       # SWR hooks for runs
+│   │   │   └── useMetrics.ts    # useFlakyTests, useFailureCategories, useTopFailing, useCoverage, useDefects, useAiSummary
+│   │   ├── store/
+│   │   │   └── projectStore.ts  # Zustand: selected project + project list
+│   │   └── utils/
+│   │       └── formatters.ts    # Date, duration, status formatters
 │   ├── package.json
 │   └── Dockerfile
 ├── k8s/
@@ -179,6 +242,7 @@ Copy `.env.example` to `.env` and configure:
 | `LLM_PROVIDER` | ollama \| openai \| gemini \| lmstudio \| vllm |
 | `LLM_MODEL` | Model name (e.g., qwen2.5:7b, gpt-4o) |
 | `AI_OFFLINE_MODE` | true = Ollama only, no internet calls |
+| `STORAGE_BACKEND` | minio \| local (required — no default) |
 | `POSTGRES_*` | PostgreSQL connection settings |
 | `MONGO_*` | MongoDB connection settings |
 | `REDIS_*` | Redis broker settings |
@@ -194,6 +258,39 @@ LLM_PROVIDER=openai
 LLM_MODEL=gpt-4o
 docker compose restart backend worker
 ```
+
+---
+
+## Coding Conventions
+
+### Backend
+
+- **Pydantic v2 only.** Use `@field_validator(..., mode="before")` + `@classmethod` for validators. Use `model_config = SettingsConfigDict(...)` in Settings. Never use deprecated v1 `@validator` or `class Config`.
+- **Async everywhere.** All DB calls, HTTP calls, and service methods must be `async def`. SQLAlchemy sessions use `async with AsyncSession` from `backend/app/db/postgres.py`.
+- **No SQL INTERVAL string literals with parameters.** PostgreSQL cannot bind params inside string literals like `INTERVAL ':days days'`. Always compute `period_start` in Python (`datetime.now(timezone.utc) - timedelta(days=days)`) and pass as a bound param.
+- **Router pattern:** Thin routers — business logic belongs in `services/`, not routers. Routers only handle HTTP concerns (status codes, request parsing, dependency injection).
+- **Celery tasks** in `worker/tasks.py` are fire-and-forget — they accept simple serializable args (IDs, dicts), not ORM objects.
+- **AgentExecutor** must include `max_execution_time=settings.AI_TIMEOUT_SECONDS` to prevent runaway LLM calls.
+
+### Frontend
+
+- **SWR for all data fetching.** Add hooks in `hooks/` that wrap `useSWR`; pages import hooks, not raw service calls directly.
+- **Zustand for global state.** Only project selection and project list live in the store (`store/projectStore.ts`). Per-page state stays local.
+- **`api.ts` is the Axios base.** All service files import from `services/api.ts`. Never create a second Axios instance.
+- **TestCase breadcrumbs** use `runId?.slice(0,8)` — the `build_number` field lives on `TestRun`, not `TestCase`.
+- **TypeScript strict mode is on** — avoid `any`; use `unknown` + type guards when necessary.
+
+---
+
+## Known Pitfalls
+
+These bugs have been encountered and fixed — avoid reintroducing them:
+
+1. **SQL INTERVAL parameterization** — `INTERVAL ':days days'` does NOT work in PostgreSQL. Use Python `timedelta` instead. See `services/metrics_service.py` and `routers/search.py`.
+2. **Pydantic v1 syntax** — `@validator` and `class Config` are removed in Pydantic v2. All validators in `core/config.py` use `@field_validator`.
+3. **Missing `.env`** — Docker Compose reads `.env` at startup; without it the stack fails silently. `STORAGE_BACKEND` has no default and must be set explicitly.
+4. **AgentExecutor timeout** — Without `max_execution_time`, a slow Ollama model will hang the request indefinitely.
+5. **TestCase `build_number`** — This field is on `TestRun`, not `TestCase`. Don't reference `tc.build_number`.
 
 ---
 
