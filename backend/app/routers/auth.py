@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt  # type: ignore
 from passlib.context import CryptContext  # type: ignore
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from app.core.config import settings
 from app.core.deps import get_current_active_user
 from app.db.postgres import get_db
 from app.models.postgres import User, UserRole
-from app.models.schemas import LoginRequest, TokenResponse, UserCreate, UserResponse
+from app.models.schemas import TokenResponse, UserCreate, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,6 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     logger.info(f"New user registered: {user.username}")
     return user
 
-
-from fastapi.security import OAuth2PasswordRequestForm
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):

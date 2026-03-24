@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import structlog  # type: ignore
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -77,7 +77,6 @@ app.include_router(auth.router)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
 
 # Protected
-from fastapi import Depends
 protected_deps = [Depends(get_current_active_user)]
 
 app.include_router(projects.router, dependencies=protected_deps)

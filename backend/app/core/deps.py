@@ -1,15 +1,13 @@
 """Dependencies for FastAPI (authentication, database)."""
 import logging
-from typing import Generator, AsyncGenerator
 import uuid
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError # type: ignore
+from jose import JWTError # type: ignore
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.security import decode_token
 from app.db.postgres import get_db
 from app.models.postgres import User
@@ -17,7 +15,7 @@ from app.models.postgres import User
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"/api/v1/auth/login", # Matches our login endpoint
+    tokenUrl="/api/v1/auth/login", # Matches our login endpoint
     scheme_name="JWT"
 )
 
