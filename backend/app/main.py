@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.deps import get_current_active_user
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
-from app.routers import analyze, analytics, auth, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
+from app.routers import agents, analyze, analytics, auth, chat, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -40,6 +40,8 @@ async def lifespan(app: FastAPI):
         await db["raw_allure_json"].create_index("test_case_id", unique=True, background=True)
         await db["ai_analysis_payloads"].create_index("test_case_id", background=True)
         await db["ocp_pod_events"].create_index("test_run_id", background=True)
+        await db["run_summaries"].create_index("test_run_id", unique=True, background=True)
+        await db["live_execution_events"].create_index("run_id", background=True)
         logger.info("MongoDB indexes verified")
     except Exception as e:
         logger.warning("Failed to create MongoDB indexes", error=str(e))
@@ -94,6 +96,8 @@ app.include_router(analytics.router, dependencies=protected_deps)
 app.include_router(integrations.router, dependencies=protected_deps)
 app.include_router(notifications.router, dependencies=protected_deps)
 app.include_router(live.router, dependencies=protected_deps)
+app.include_router(agents.router, dependencies=protected_deps)
+app.include_router(chat.router, dependencies=protected_deps)
 
 # Debug — ADMIN only (role check applied at endpoint level in debug.py)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"], dependencies=protected_deps)

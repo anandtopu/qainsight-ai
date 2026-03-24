@@ -18,6 +18,8 @@ const SearchPage         = lazy(() => import('@/pages/SearchPage'))
 const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
 const SettingsPage           = lazy(() => import('@/pages/SettingsPage'))
 const NotificationsPage      = lazy(() => import('@/pages/settings/NotificationsPage'))
+const ChatPage               = lazy(() => import('@/pages/ChatPage'))
+const AgentStatusPage        = lazy(() => import('@/pages/AgentStatusPage'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-64">
@@ -67,6 +69,15 @@ export default function App() {
           } />
           <Route path="settings/notifications" element={
             <Suspense fallback={<Fallback />}><NotificationsPage /></Suspense>
+          } />
+          <Route path="chat" element={
+            <Suspense fallback={<Fallback />}><ChatPage /></Suspense>
+          } />
+          <Route path="agents" element={
+            <Suspense fallback={<Fallback />}><AgentStatusPage /></Suspense>
+          } />
+          <Route path="agents/run/:runId" element={
+            <Suspense fallback={<Fallback />}><AgentStatusPage /></Suspense>
           } />
         </Route>
       </Route>

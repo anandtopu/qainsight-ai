@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
-  BarChart3, Bug, FlaskConical, Gauge, GitBranch,
-  LayoutDashboard, Search, Settings, ShieldCheck, TrendingUp,
+  BarChart3, Bot, Bug, FlaskConical, Gauge, GitBranch,
+  LayoutDashboard, MessageSquare, Search, Settings, ShieldCheck, TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -14,6 +14,11 @@ const NAV = [
   { to: '/defects',   icon: Gauge,           label: 'Defects'    },
   { to: '/search',    icon: Search,          label: 'Search'     },
   { to: '/projects',  icon: FlaskConical,    label: 'Projects'   },
+]
+
+const AI_NAV = [
+  { to: '/agents',    icon: Bot,             label: 'AI Pipeline' },
+  { to: '/chat',      icon: MessageSquare,   label: 'Chat'        },
 ]
 
 export default function Sidebar() {
@@ -33,19 +38,42 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              clsx('sidebar-link', isActive && 'active')
-            }
-          >
-            <Icon className="h-4 w-4 flex-shrink-0" />
-            {label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        <div className="space-y-0.5">
+          {NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                clsx('sidebar-link', isActive && 'active')
+              }
+            >
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              {label}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* AI section */}
+        <div className="mt-4 pt-4 border-t border-slate-800/60">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-2 mb-1.5">
+            AI Agents
+          </p>
+          <div className="space-y-0.5">
+            {AI_NAV.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  clsx('sidebar-link', isActive && 'active')
+                }
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
       </nav>
 
       {/* Footer */}

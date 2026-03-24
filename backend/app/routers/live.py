@@ -146,3 +146,54 @@ async def notify_ai_ready(project_id: str, test_id: str, confidence: int, catego
         "confidence_score": confidence,
         "failure_category": category,
     })
+
+
+# ── Live execution event ingestion (HTTP) ──────────────────────────────────
+# Called by test runners (e.g. pytest plugin, Allure listener) during execution
+
+from fastapi import Body, Depends, HTTPException
+from app.core.deps import verify_webhook_secret
+
+
+@router.post("/events/{run_id}", dependencies=[Depends(verify_webhook_secret)], status_code=202)
+async def ingest_live_event(
+    run_id: str,
+    event: dict = Body(...),
+):
+    """
+    Receive a live test execution event from a test runner.
+    Supported event types:
+      - run_start: {type, project_id, build_number, total_tests}
+      - test_result: {type, test_name, status, duration_ms, error_message}
+      - run_complete: {type}
+
+    Protected by X-Webhook-Secret header.
+    """
+    from app.agents.live_monitor import LiveMonitorAgent
+    from app.db.mongo import Collections, get_mongo_db
+
+    event_type = event.get("type", "test_result")
+
+    # Persist raw event to MongoDB for audit
+    try:
+        db = get_mongo_db()
+        await db[Collections.LIVE_EXECUTION_EVENTS].insert_one(
+            {"run_id": run_id, **event}
+        )
+    except Exception:
+        pass  # Non-critical
+
+    if event_type == "run_start":
+        project_id = event.get("project_id")
+        build_number = event.get("build_number", run_id)
+        if not project_id:
+            raise HTTPException(400, detail="project_id required for run_start event")
+        await LiveMonitorAgent.on_run_start(run_id, project_id, build_number)
+
+    elif event_type == "test_result":
+        await LiveMonitorAgent.on_test_event(run_id, event)
+
+    elif event_type == "run_complete":
+        await LiveMonitorAgent.on_run_complete(run_id)
+
+    return {"accepted": True}

@@ -111,6 +111,50 @@ def dispatch_run_notifications(
 
 
 @celery_app.task(
+    name="app.worker.tasks.run_agent_pipeline",
+    bind=True,
+    max_retries=1,
+    default_retry_delay=30,
+    queue="ai_analysis",
+    time_limit=600,
+)
+def run_agent_pipeline(
+    self,
+    test_run_id: str,
+    project_id: str,
+    build_number: str,
+    workflow_type: str = "offline",
+):
+    """
+    Background task: run the full multi-agent pipeline for a completed test run.
+    Stages: ingestion → anomaly detection → root-cause analysis → summary → triage
+    """
+    from app.agents.workflow import run_offline_pipeline
+
+    logger.info(
+        "[Task %s] Starting agent pipeline for run=%s build=%s type=%s",
+        self.request.id, test_run_id, build_number, workflow_type,
+    )
+    try:
+        final_state = _run_async(run_offline_pipeline(
+            test_run_id=test_run_id,
+            project_id=project_id,
+            build_number=build_number,
+            workflow_type=workflow_type,
+        ))
+        stages_done = final_state.get("completed_stages", [])
+        errors = final_state.get("errors", [])
+        logger.info(
+            "[Task %s] Agent pipeline complete. stages=%s errors=%d",
+            self.request.id, stages_done, len(errors),
+        )
+        return {"completed_stages": stages_done, "error_count": len(errors)}
+    except Exception as exc:
+        logger.error("[Task %s] Agent pipeline failed: %s", self.request.id, exc, exc_info=True)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(
     name="app.worker.tasks.take_coverage_snapshot",
     queue="default",
 )

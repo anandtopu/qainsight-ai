@@ -161,6 +161,19 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
             except Exception as notify_err:
                 logger.warning("Failed to enqueue run notifications: %s", notify_err)
 
+            # Trigger the multi-agent analysis pipeline
+            try:
+                from app.worker.tasks import run_agent_pipeline as _pipeline_task
+                _pipeline_task.delay(
+                    test_run_id=str(run.id),
+                    project_id=str(run.project_id),
+                    build_number=run.build_number,
+                    workflow_type="offline",
+                )
+                logger.info("Agent pipeline queued for run %s", run.id)
+            except Exception as pipeline_err:
+                logger.warning("Failed to queue agent pipeline: %s", pipeline_err)
+
         except Exception as e:
             await db.rollback()
             logger.error(f"Ingestion failed for run {sentinel.build_number}: {e}", exc_info=True)

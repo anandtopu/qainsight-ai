@@ -368,3 +368,76 @@ class NotificationLogResponse(BaseModel):
 class TestNotificationRequest(BaseModel):
     channel: NotificationChannel
     preference_id: Optional[uuid.UUID] = None
+
+
+# ── Agent Pipeline Schemas ─────────────────────────────────────
+
+class TriggerPipelineRequest(BaseModel):
+    test_run_id: uuid.UUID
+
+
+class AgentStageResultResponse(BaseModel):
+    stage_name: str
+    status: str
+    started_at: Optional[Any] = None
+    completed_at: Optional[Any] = None
+    result_data: Optional[Any] = None
+    error: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AgentPipelineResponse(BaseModel):
+    id: uuid.UUID
+    test_run_id: uuid.UUID
+    workflow_type: str
+    status: str
+    started_at: Optional[Any] = None
+    completed_at: Optional[Any] = None
+    error: Optional[str] = None
+    created_at: Any
+
+    class Config:
+        from_attributes = True
+
+
+# ── Chat Schemas ───────────────────────────────────────────────
+
+class ChatSessionCreate(BaseModel):
+    project_id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+
+
+class ChatSessionResponse(BaseModel):
+    id: uuid.UUID
+    project_id: Optional[uuid.UUID] = None
+    title: Optional[str] = None
+    created_at: Any
+    updated_at: Any
+
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageResponse(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    role: str
+    content: str
+    sources: Optional[List[Any]] = None
+    created_at: Any
+
+    class Config:
+        from_attributes = True
+
+
+class SendMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    project_id: Optional[str] = None
+
+
+class SendMessageResponse(BaseModel):
+    session_id: uuid.UUID
+    reply: str
+    sources: List[Any] = []
