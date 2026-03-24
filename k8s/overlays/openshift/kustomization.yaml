@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - route.yaml
+
+namespace: qainsight-ai
+
+patches:
+  # OpenShift uses Routes; remove base Ingress resource.
+  - path: remove-ingress.yaml
+
+  # Allow OpenShift restricted SCC to assign a random non-root UID.
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-backend
+
+images:
+  - name: qainsight/backend
+    newTag: "3.0.0"
+  - name: qainsight/frontend
+    newTag: "3.0.0"
+  - name: qainsight/mcp
+    newTag: "3.0.0"
+
+

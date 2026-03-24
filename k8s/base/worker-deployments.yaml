@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-worker
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-worker
+  template:
+    metadata:
+      labels:
+        app: qainsight-worker
+    spec:
+      serviceAccountName: qainsight-sa
+      containers:
+        - name: worker
+          image: qainsight/backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - -Q
+            - default,ingestion,ai_analysis
+          envFrom:
+            - configMapRef:
+                name: qainsight-config
+            - secretRef:
+                name: qainsight-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-beat
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-beat
+  template:
+    metadata:
+      labels:
+        app: qainsight-beat
+    spec:
+      serviceAccountName: qainsight-sa
+      containers:
+        - name: beat
+          image: qainsight/backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - beat
+            - --loglevel=info
+          envFrom:
+            - configMapRef:
+                name: qainsight-config
+            - secretRef:
+                name: qainsight-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+

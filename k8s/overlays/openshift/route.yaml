@@ -1,0 +1,46 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: qainsight
+  namespace: qainsight-ai
+spec:
+  host: qainsight.apps.example.com
+  to:
+    kind: Service
+    name: qainsight-frontend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: qainsight-api
+  namespace: qainsight-ai
+spec:
+  host: qainsight-api.apps.example.com
+  to:
+    kind: Service
+    name: qainsight-backend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: qainsight-mcp
+  namespace: qainsight-ai
+spec:
+  host: qainsight-mcp.apps.example.com
+  path: /sse
+  to:
+    kind: Service
+    name: qainsight-mcp
+  port:
+    targetPort: sse
+  tls:
+    termination: edge
+

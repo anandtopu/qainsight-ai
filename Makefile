@@ -115,6 +115,9 @@ k8s-deploy-staging: ## Deploy to staging Kubernetes cluster
 k8s-deploy-prod: ## Deploy to production Kubernetes cluster
 	kubectl apply -k k8s/overlays/prod
 
+k8s-deploy-openshift: ## Deploy using OpenShift-compatible overlay
+	kubectl apply -k k8s/overlays/openshift
+
 k8s-status: ## Show Kubernetes deployment status
 	kubectl get pods,svc,ing -n qainsight-ai
 

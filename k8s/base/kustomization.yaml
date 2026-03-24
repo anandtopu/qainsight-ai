@@ -9,6 +9,7 @@ resources:
   - secrets.yaml
   - rbac.yaml
   - backend-deployment.yaml
+  - worker-deployments.yaml
   - frontend-deployment.yaml
   - mcp-deployment.yaml
   - ollama-deployment.yaml
