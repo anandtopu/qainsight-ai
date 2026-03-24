@@ -31,15 +31,15 @@ export default function LoginPage() {
       const res = await api.post('/api/v1/auth/login', params, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
-      
-      const { access_token } = res.data;
-      
-      // Get user details right after
+
+      const { access_token, refresh_token } = res.data;
+
+      // Get user details right after login using the new token
       const userRes = await api.get('/api/v1/auth/me', {
         headers: { Authorization: `Bearer ${access_token}` }
       });
 
-      setAuth(access_token, userRes.data);
+      setAuth(access_token, refresh_token, userRes.data);
       toast.success('Logged in successfully');
       navigate(from, { replace: true });
 

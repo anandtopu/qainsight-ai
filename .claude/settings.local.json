@@ -13,7 +13,8 @@
       "Bash(node build_plan.cjs)",
       "Bash(cd:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ]
   }
 }

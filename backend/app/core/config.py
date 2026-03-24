@@ -105,8 +105,11 @@ class Settings(BaseSettings):
     # ── Authentication & JWT ──────────────────────────────────
     JWT_SECRET_KEY: str = "change-me-jwt-secret"
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # ── Webhook Security ──────────────────────────────────────
+    WEBHOOK_SECRET: str = "change-me-webhook-secret"
 
     # ── Logging ───────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"

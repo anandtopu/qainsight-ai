@@ -3,15 +3,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import require_role
 from app.db.postgres import get_db
-from app.models.postgres import AIAnalysis, TestCase
+from app.models.postgres import AIAnalysis, TestCase, UserRole
 from app.models.schemas import JiraIssueRequest, JiraIssueResponse
 from app.services.jira_client import create_jira_issue
 
 router = APIRouter(prefix="/api/v1/integrations", tags=["Integrations"])
 
 
-@router.post("/jira", response_model=JiraIssueResponse)
+@router.post(
+    "/jira",
+    response_model=JiraIssueResponse,
+    dependencies=[Depends(require_role(UserRole.QA_ENGINEER))],
+)
 async def create_jira_defect(
     request: JiraIssueRequest,
     db: AsyncSession = Depends(get_db),

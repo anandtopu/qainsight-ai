@@ -13,41 +13,69 @@ export interface User {
 
 interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  setAuth: (token: string, user: User) => void;
+  setAuth: (token: string, refreshToken: string, user: User) => void;
   logout: () => void;
   fetchUser: () => Promise<void>;
+  refreshAccessToken: () => Promise<string | null>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null,
+      refreshToken: null,
       user: null,
       isAuthenticated: false,
 
-      setAuth: (token, user) => set({ token, user, isAuthenticated: true }),
+      setAuth: (token, refreshToken, user) =>
+        set({ token, refreshToken, user, isAuthenticated: true }),
 
-      logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      logout: () => set({ token: null, refreshToken: null, user: null, isAuthenticated: false }),
 
       fetchUser: async () => {
         const { token, logout } = get();
         if (!token) return;
 
         try {
-          // If token interceptor is set, this will use the token
           const res = await api.get<User>('/api/v1/auth/me');
           set({ user: res.data, isAuthenticated: true });
-        } catch (error) {
-          console.error("Failed to fetch user:", error);
+        } catch {
           logout();
+        }
+      },
+
+      refreshAccessToken: async (): Promise<string | null> => {
+        const { refreshToken, logout } = get();
+        if (!refreshToken) {
+          logout();
+          return null;
+        }
+
+        try {
+          const res = await api.post<{ access_token: string; refresh_token: string }>(
+            '/api/v1/auth/refresh',
+            { refresh_token: refreshToken },
+          );
+          const { access_token, refresh_token } = res.data;
+          set({ token: access_token, refreshToken: refresh_token });
+          return access_token;
+        } catch {
+          logout();
+          return null;
         }
       },
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ token: state.token }), // Only persist token
+      // Persist both tokens; access token has short TTL so we need refresh token
+      // to survive page reloads without forcing re-login every 15 minutes.
+      partialize: (state) => ({
+        token: state.token,
+        refreshToken: state.refreshToken,
+      }),
     }
   )
 );

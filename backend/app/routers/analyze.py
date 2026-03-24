@@ -3,15 +3,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import require_role
 from app.db.postgres import get_db
-from app.models.postgres import AIAnalysis, FailureCategory, TestCase
+from app.models.postgres import AIAnalysis, FailureCategory, TestCase, UserRole
 from app.models.schemas import AnalysisResponse, AnalyzeRequest
 from app.services.agent import run_triage_agent
 
 router = APIRouter(prefix="/api/v1", tags=["AI Analysis"])
 
 
-@router.post("/analyze", response_model=AnalysisResponse)
+@router.post(
+    "/analyze",
+    response_model=AnalysisResponse,
+    dependencies=[Depends(require_role(UserRole.QA_ENGINEER))],
+)
 async def analyze_test_case(
     request: AnalyzeRequest,
     db: AsyncSession = Depends(get_db),

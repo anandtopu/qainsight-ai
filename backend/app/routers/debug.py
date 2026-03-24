@@ -2,8 +2,10 @@ import logging
 import uuid
 import random
 from typing import Literal
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.deps import require_role
+from app.models.postgres import UserRole
 from app.models.schemas import SentinelFile
 from app.services.mock_generator import generate_mock_allure_results, generate_mock_testng_results
 from app.db.storage import get_storage_provider
@@ -13,12 +15,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/generate-test-run", status_code=202)
+@router.post(
+    "/generate-test-run",
+    status_code=202,
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
+)
 async def generate_mock_test_run(
     project_id: uuid.UUID,
     num_tests: int = 50,
     failure_rate: float = 0.2,
-    report_type: Literal["allure", "testng", "both"] = "both"
+    report_type: Literal["allure", "testng", "both"] = "both",
 ):
     """
     Generates a synthetic test run and triggers the ingestion pipeline.
