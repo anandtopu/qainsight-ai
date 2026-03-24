@@ -148,4 +148,4 @@ mcp-sse: ## Start MCP server (SSE mode — for web/CI clients on port 8002)
 
 mcp-sse-docker: ## Start MCP SSE server via Docker Compose
 	$(DOCKER_COMPOSE) up -d mcp
-	@echo "✅ MCP SSE server running at http://localhost:8001/sse"
+	@echo "✅ MCP SSE server running at http://localhost:8002/sse"
