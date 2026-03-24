@@ -134,3 +134,18 @@ simulate-upload: ## Simulate a Jenkins test run upload to MinIO (for testing)
 
 setup-minio: ## Manually configure MinIO bucket and webhook
 	./scripts/setup-minio.sh
+
+# ── MCP Server ────────────────────────────────────────────────
+
+mcp-install: ## Install MCP server Python dependencies
+	cd mcp && pip install -r requirements.txt
+
+mcp-start: ## Start MCP server (stdio mode — for Claude Desktop)
+	cd mcp && python server.py --transport stdio
+
+mcp-sse: ## Start MCP server (SSE mode — for web/CI clients on port 8002)
+	cd mcp && python server.py --transport sse --port 8002
+
+mcp-sse-docker: ## Start MCP SSE server via Docker Compose
+	$(DOCKER_COMPOSE) up -d mcp
+	@echo "✅ MCP SSE server running at http://localhost:8001/sse"

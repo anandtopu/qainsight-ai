@@ -10,7 +10,8 @@
       "Bash(npm install:*)",
       "Bash(node build_plan.js)",
       "Bash(mv \"C:/Users/anand/Downloads/Career_Pre/build_plan.js\" \"C:/Users/anand/Downloads/Career_Pre/build_plan.cjs\")",
-      "Bash(node build_plan.cjs)"
+      "Bash(node build_plan.cjs)",
+      "Bash(cd:*)"
     ]
   }
 }

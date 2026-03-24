@@ -1,0 +1,97 @@
+"""
+QA Insight AI — MCP Server
+==========================
+
+Exposes 20 tools, 10 resources, and 6 prompt templates to MCP clients
+(Claude Desktop, IDEs, CI pipelines).
+
+Transport: stdio (default) or SSE
+Auth:      JWT via QAINSIGHT_USERNAME / QAINSIGHT_PASSWORD env vars
+
+Usage:
+    python server.py                    # stdio (Claude Desktop)
+    python server.py --transport sse    # SSE on port 8001
+
+Claude Desktop config (~/.claude/claude_desktop_config.json):
+    {
+      "mcpServers": {
+        "qainsight": {
+          "command": "python",
+          "args": ["/path/to/mcp/server.py"],
+          "env": {
+            "QAINSIGHT_API_URL": "http://localhost:8000",
+            "QAINSIGHT_USERNAME": "your-user",
+            "QAINSIGHT_PASSWORD": "your-pass"
+          }
+        }
+      }
+    }
+
+SSE transport (CI / web clients):
+    python server.py --transport sse --port 8002
+    Client connects to: http://localhost:8002/sse
+"""
+
+from __future__ import annotations
+
+import sys
+import os
+
+# Ensure mcp/ directory is on the path when run directly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from mcp.server.fastmcp import FastMCP  # type: ignore[import]
+
+from tools import auth, projects, runs, metrics, analytics, analysis, release
+from resources import registry
+from prompts import templates
+
+mcp = FastMCP(
+    name="QA Insight AI",
+    instructions=(
+        "You are connected to QA Insight AI, a 360° software testing intelligence platform. "
+        "You can query test quality metrics, investigate failures, check release readiness, "
+        "and trigger AI root-cause analysis for failing tests. "
+        "Start with `list_projects` to discover available projects, then use the project_id "
+        "in subsequent tool calls. Use `health_check` to verify connectivity."
+    ),
+)
+
+# ── Register Tools ────────────────────────────────────────────────────────────
+auth.register(mcp)
+projects.register(mcp)
+runs.register(mcp)
+metrics.register(mcp)
+analytics.register(mcp)
+analysis.register(mcp)
+release.register(mcp)
+
+# ── Register Resources ────────────────────────────────────────────────────────
+registry.register(mcp)
+
+# ── Register Prompts ──────────────────────────────────────────────────────────
+templates.register(mcp)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="QA Insight AI MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse"],
+        default="stdio",
+        help="MCP transport protocol (default: stdio)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8002,
+        help="Port for SSE transport (default: 8002)",
+    )
+    args = parser.parse_args()
+
+    if args.transport == "sse":
+        mcp.run(transport="sse", port=args.port)
+    else:
+        mcp.run(transport="stdio")

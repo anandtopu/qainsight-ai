@@ -300,6 +300,30 @@ services:
     networks:
       - qainsight_net
 
+  # ──────────────────────────────────────────────────────────
+  # MCP SERVER — AI assistant integration (SSE transport)
+  # ──────────────────────────────────────────────────────────
+  # Primary use: stdio (Claude Desktop) — run `make mcp-start` locally.
+  # This container enables SSE transport for CI pipelines and web clients.
+
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    container_name: qainsight_mcp
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - QAINSIGHT_API_URL=http://backend:8000
+      - QAINSIGHT_USERNAME=${MCP_USERNAME:-}
+      - QAINSIGHT_PASSWORD=${MCP_PASSWORD:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - qainsight_net
+
 # ──────────────────────────────────────────────────────────
 # NETWORKS & VOLUMES
 # ──────────────────────────────────────────────────────────

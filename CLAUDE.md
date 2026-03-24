@@ -352,6 +352,83 @@ The LangChain ReAct agent (`backend/app/services/agent.py`) has 5 tools:
 
 ---
 
+## MCP Server
+
+The `mcp/` directory contains a Model Context Protocol server that exposes QA Insight AI to
+Claude Desktop, IDEs, and CI pipelines.
+
+### Files
+```
+mcp/
+├── server.py          # Entry point — registers all tools/resources/prompts
+├── config.py          # Pydantic settings (QAINSIGHT_API_URL, USERNAME, PASSWORD)
+├── client.py          # httpx async client with JWT auto-auth and token refresh
+├── tools/             # 20 callable tools (auth, projects, runs, metrics, analytics, analysis, release)
+├── resources/         # 10 readable resources (qainsight://projects, runs, tests, defects…)
+├── prompts/           # 6 investigation workflows (investigate_failure, release_readiness, …)
+├── Dockerfile         # Container for SSE transport
+├── requirements.txt   # mcp, httpx, pydantic-settings
+└── .env.example       # Environment variable reference
+```
+
+### Running Locally (Claude Desktop — stdio)
+
+```bash
+make mcp-install      # pip install -r mcp/requirements.txt
+make mcp-start        # python mcp/server.py --transport stdio
+```
+
+Claude Desktop `~/.claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "qainsight": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp/server.py"],
+      "env": {
+        "QAINSIGHT_API_URL": "http://localhost:8000",
+        "QAINSIGHT_USERNAME": "your-user",
+        "QAINSIGHT_PASSWORD": "your-pass"
+      }
+    }
+  }
+}
+```
+
+### Running as SSE Service (CI / web clients)
+
+```bash
+make mcp-sse           # python mcp/server.py --transport sse --port 8002
+make mcp-sse-docker    # docker compose up -d mcp  (port 8002)
+```
+
+SSE endpoint: `http://localhost:8002/sse`
+
+### Available Tools (20)
+
+| Group | Tools |
+|-------|-------|
+| Auth | `login`, `health_check` |
+| Projects | `list_projects`, `get_project`, `create_project` |
+| Runs | `list_test_runs`, `get_run_details`, `list_test_cases`, `get_test_case` |
+| Metrics | `get_dashboard_metrics`, `get_test_trends` |
+| Analytics | `get_flaky_tests`, `get_failure_categories`, `get_top_failing_tests`, `get_coverage_report`, `get_defects`, `get_ai_analysis_summary` |
+| Analysis | `trigger_ai_analysis`, `search_tests` |
+| Release | `check_release_readiness` |
+
+### Available Prompts (6)
+
+| Prompt | Purpose |
+|--------|---------|
+| `investigate_failure` | Full root-cause investigation for a failing test |
+| `release_readiness_report` | Executive go/no-go report for a release |
+| `weekly_quality_digest` | Weekly quality summary for team sharing |
+| `flakiness_investigation` | Deep-dive on flaky tests with remediation plan |
+| `defect_triage_session` | Structured defect triage with prioritisation |
+| `suite_health_check` | Health report for a specific test suite |
+
+---
+
 ## Documentation
 
 | File | Purpose |
