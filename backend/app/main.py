@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.deps import get_current_active_user
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
 from app.routers import analyze, analytics, auth, integrations, live, metrics, projects, runs, search, webhooks, debug
@@ -70,17 +71,23 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────
+# Public / Debug
 app.include_router(webhooks.router)
 app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(runs.router)
-app.include_router(metrics.router)
-app.include_router(search.router)
-app.include_router(analyze.router)
-app.include_router(analytics.router)
-app.include_router(integrations.router)
-app.include_router(live.router)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"])
+
+# Protected
+from fastapi import Depends
+protected_deps = [Depends(get_current_active_user)]
+
+app.include_router(projects.router, dependencies=protected_deps)
+app.include_router(runs.router, dependencies=protected_deps)
+app.include_router(metrics.router, dependencies=protected_deps)
+app.include_router(search.router, dependencies=protected_deps)
+app.include_router(analyze.router, dependencies=protected_deps)
+app.include_router(analytics.router, dependencies=protected_deps)
+app.include_router(integrations.router, dependencies=protected_deps)
+app.include_router(live.router, dependencies=protected_deps)
 
 
 # ── Health check ──────────────────────────────────────────────

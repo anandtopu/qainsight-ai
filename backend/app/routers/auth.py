@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.deps import get_current_active_user
 from app.db.postgres import get_db
 from app.models.postgres import User, UserRole
 from app.models.schemas import LoginRequest, TokenResponse, UserCreate, UserResponse
@@ -66,8 +67,10 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     return user
 
 
+from fastapi.security import OAuth2PasswordRequestForm
+
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(payload: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """Authenticate and return JWT access + refresh tokens."""
     result = await db.execute(
         select(User).where(
@@ -104,6 +107,6 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me():
-    """Placeholder — returns 501 until JWT middleware is wired in."""
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Auth middleware not yet configured")
+async def get_me(current_user: User = Depends(get_current_active_user)):
+    """Return the currently authenticated user."""
+    return current_user

@@ -3,6 +3,8 @@ import { Search } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useProjectStore } from '@/store/projectStore'
 import { projectsService, type Project } from '@/services/projectsService'
+import { useAuthStore } from '@/store/authStore'
+import { UserCircle, LogOut } from 'lucide-react'
 
 export default function TopBar() {
   const navigate = useNavigate()
@@ -50,6 +52,31 @@ export default function TopBar() {
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
+
+      {/* User profile */}
+      <div className="flex items-center gap-3 ml-4 border-l border-slate-700 pl-4 relative group cursor-pointer h-full">
+        <UserCircle className="w-8 h-8 text-slate-400" />
+        <div className="flex flex-col justify-center">
+          <span className="text-sm font-medium text-slate-200 leading-none">
+            {useAuthStore(s => s.user?.full_name || s.user?.username || 'User')}
+          </span>
+          <span className="text-xs text-slate-500 mt-1 leading-none">{useAuthStore(s => s.user?.role || '')}</span>
+        </div>
+        
+        {/* Dropdown on hover */}
+        <div className="absolute right-0 top-12 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-md shadow-lg py-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">
+          <div className="px-4 py-2 border-b border-slate-700">
+            <p className="text-sm text-slate-300 font-medium">{useAuthStore(s => s.user?.email || '')}</p>
+          </div>
+          <button 
+            onClick={() => useAuthStore.getState().logout()}
+            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700/50 flex items-center gap-2 transition-colors mt-1"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
+        </div>
+      </div>
     </header>
   )
 }
