@@ -44,3 +44,5 @@ images:
     newTag: dev-latest
   - name: qainsight/frontend
     newTag: dev-latest
+  - name: qainsight/mcp
+    newTag: dev-latest

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-mcp
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-mcp
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-mcp
+  template:
+    metadata:
+      labels:
+        app: qainsight-mcp
+    spec:
+      containers:
+        - name: mcp
+          image: qainsight/mcp:latest
+          ports:
+            - containerPort: 8002
+              name: sse
+          env:
+            - name: QAINSIGHT_API_URL
+              value: "http://qainsight-backend:8000"
+            - name: QAINSIGHT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: qainsight-secrets
+                  key: MCP_USERNAME
+            - name: QAINSIGHT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: qainsight-secrets
+                  key: MCP_PASSWORD
+            - name: QAINSIGHT_REQUEST_TIMEOUT
+              value: "120"
+          command: ["python", "server.py", "--transport", "sse", "--port", "8002"]
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /sse
+              port: 8002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /sse
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3

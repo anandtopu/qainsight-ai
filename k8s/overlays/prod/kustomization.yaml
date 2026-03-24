@@ -29,3 +29,5 @@ images:
     newTag: "3.0.0"
   - name: qainsight/worker
     newTag: "3.0.0"
+  - name: qainsight/mcp
+    newTag: "3.0.0"

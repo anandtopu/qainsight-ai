@@ -1,16 +1,19 @@
 # QA Insight AI 🔭
 
-> **360° AI-Powered Software Testing Intelligence Platform**  
-> Local-LLM capable · Multi-framework · OpenShift/Kubernetes native
+> **360° AI-Powered Software Testing Intelligence Platform**
+> Local-LLM capable · Multi-framework · OpenShift/Kubernetes native · MCP-enabled
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB)](https://reactjs.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)](https://fastapi.tiangolo.com)
+[![MCP](https://img.shields.io/badge/MCP-Server-blueviolet)](https://modelcontextprotocol.io)
 
 ## Overview
 
 QA Insight AI bridges the gap between automated test execution and defect resolution. It ingests test results from 50+ frameworks, applies a LangChain ReAct agent (running locally via Ollama — **no internet required**) to correlate failures across stack traces, Splunk logs, and Kubernetes pod events, and pushes structured root-cause summaries to Jira in one click.
+
+It also ships a first-class **MCP (Model Context Protocol) server** so AI assistants (Claude Desktop, IDE plugins, CI pipelines) can query test quality, investigate failures, and gate releases through natural-language conversations — no browser required.
 
 ## Key Features
 
@@ -21,7 +24,7 @@ QA Insight AI bridges the gap between automated test execution and defect resolu
 | **Offline AI** | Fully air-gapped with Ollama (qwen2.5, llama3, mistral) |
 | **Dashboards** | Pass/fail trends, coverage heatmaps, flaky leaderboard, defect burn-down |
 | **Quality Gates** | Automated GO/NO-GO feedback to Jenkins/GitHub Actions |
-| **Test Management** | Manual test cases, BDD/Gherkin, requirements traceability |
+| **MCP Server** | 20 tools · 10 resources · 6 prompt workflows for AI assistant integration |
 | **Search** | Full-text + semantic RAG search across all test history |
 | **Integrations** | Jira, Splunk, OpenShift API, Slack, Teams, GitHub Issues |
 
@@ -36,12 +39,16 @@ QA Insight AI bridges the gap between automated test execution and defect resolu
                               [LangChain ReAct Agent]
                               [Ollama (local) / OpenAI]
                                           ↓
-                              [React Dashboard] → [Jira Tickets]
+                   ┌──────────────────────┴──────────────────────┐
+                   ↓                                             ↓
+         [React Dashboard] → [Jira Tickets]          [MCP Server :8002]
+                                                           ↓
+                                               [Claude Desktop / IDE / CI]
 ```
 
 ## System Architecture
 
-The following diagram illustrates the microservices, data flow, and Agentic AI integration for QA Insight AI:
+The following diagram illustrates the microservices, data flow, Agentic AI integration, and MCP layer for QA Insight AI:
 
 ```mermaid
 graph TD
@@ -49,6 +56,14 @@ graph TD
         UI[React SPA Frontend]
         SDK[Client SDKs: Java, Python, JS, .NET]
         CICD[CI/CD: Jenkins, GitHub Actions]
+        MCP_CLIENT[AI Clients: Claude Desktop / IDE / CI]
+    end
+
+    subgraph MCP_Layer [MCP Integration Layer]
+        MCP[MCP Server :8002]
+        MCP_TOOLS[20 Tools]
+        MCP_RES[10 Resources]
+        MCP_PROMPTS[6 Prompt Workflows]
     end
 
     subgraph API_Layer [API & Application Layer]
@@ -86,6 +101,14 @@ graph TD
         Slack[Notifications: Slack / Teams]
     end
 
+    %% MCP Client connections
+    MCP_CLIENT -->|MCP Protocol stdio/SSE| MCP
+    MCP --> MCP_TOOLS
+    MCP --> MCP_RES
+    MCP --> MCP_PROMPTS
+    MCP_TOOLS -->|HTTP/REST + JWT| FastAPI
+    MCP_RES -->|HTTP/REST + JWT| FastAPI
+
     %% Client to API Connections
     UI -->|HTTP/REST| FastAPI
     UI -->|Real-Time Data| SSE
@@ -93,6 +116,7 @@ graph TD
     UI -->|Trend Data| Analytics
     SDK -->|Test Results| REST
     CICD -->|Trigger/Webhooks| REST
+    CICD -->|Quality Gate check via MCP| MCP
     REST --> FastAPI
     SSE --- FastAPI
     Auth --- FastAPI
@@ -125,6 +149,7 @@ graph TD
     %% External Tool Invocations
     Agent -->|Auto-Create Defects| Jira
 ```
+
 ## Quick Start (Local Development)
 
 ### Prerequisites
@@ -159,10 +184,39 @@ docker compose exec ollama ollama pull nomic-embed-text
 ### 5. Access Services
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Dashboard | http://localhost:3000 | - |
-| API Docs | http://localhost:8000/docs | - |
+| Dashboard | http://localhost:3000 | — |
+| API Docs | http://localhost:8000/docs | — |
 | MinIO Console | http://localhost:9001 | admin / password123 |
-| Flower (Celery) | http://localhost:5555 | - |
+| Flower (Celery) | http://localhost:5555 | — |
+| MCP SSE Server | http://localhost:8002/sse | — |
+
+### 6. Connect the MCP Server (Claude Desktop)
+
+Install dependencies and configure Claude Desktop:
+
+```bash
+make mcp-install
+```
+
+Add to `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "qainsight": {
+      "command": "python",
+      "args": ["/absolute/path/to/qainsight-ai/mcp/server.py"],
+      "env": {
+        "QAINSIGHT_API_URL": "http://localhost:8000",
+        "QAINSIGHT_USERNAME": "your-user",
+        "QAINSIGHT_PASSWORD": "your-pass"
+      }
+    }
+  }
+}
+```
+
+Then ask Claude: *"List all QA projects"* or *"Check release readiness for project-alpha"*.
 
 ## Project Structure
 
@@ -174,7 +228,7 @@ qainsight-ai/
 │   │   ├── core/               # Config, security, dependencies
 │   │   ├── routers/            # API route handlers
 │   │   ├── services/           # Business logic
-│   │   ├── tools/              # LangChain agent tools
+│   │   ├── tools/              # LangChain agent tools (5 tools)
 │   │   ├── models/             # SQLAlchemy ORM + Pydantic schemas
 │   │   ├── db/                 # Database connections
 │   │   └── worker/             # Celery background tasks
@@ -187,17 +241,26 @@ qainsight-ai/
 │   │   ├── pages/              # Route-level page components
 │   │   ├── components/         # Reusable UI components
 │   │   ├── services/           # API client layer
-│   │   ├── hooks/              # Custom React hooks
+│   │   ├── hooks/              # Custom React hooks (SWR)
 │   │   ├── store/              # Zustand state management
-│   │   └── utils/              # Helpers and constants
+│   │   └── utils/              # Helpers and formatters
 │   ├── package.json
 │   └── Dockerfile
+├── mcp/                        # MCP Server — AI assistant integration
+│   ├── server.py               # Entry point (stdio + SSE transport)
+│   ├── config.py               # Settings (QAINSIGHT_API_URL, credentials)
+│   ├── client.py               # httpx async client with JWT auto-auth
+│   ├── tools/                  # 20 callable tools
+│   ├── resources/              # 10 readable resources (qainsight:// URIs)
+│   ├── prompts/                # 6 investigation workflow templates
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── k8s/                        # Kubernetes/OpenShift manifests
 │   ├── base/                   # Kustomize base resources
-│   └── overlays/               # Environment-specific patches
-├── .github/workflows/          # GitHub Actions CI/CD
+│   └── overlays/               # Environment-specific patches (dev/staging/prod)
+├── infra/cloudrun/             # Cloud Run + Cloud SQL deployment assets
+├── .github/workflows/ci.yml    # GitHub Actions CI/CD pipeline
 ├── docker-compose.yml          # Local development stack
-├── docker-compose.prod.yml     # Production compose override
 ├── .env.example                # Environment variable template
 ├── Makefile                    # Developer convenience commands
 └── scripts/                    # Setup and utility scripts
@@ -223,6 +286,49 @@ make lint
 
 # Build production images
 make build
+
+# MCP server (local — for Claude Desktop)
+make mcp-install && make mcp-start
+
+# MCP server (SSE — for CI/web clients)
+make mcp-sse
+```
+
+## MCP Server
+
+QA Insight AI ships a full MCP server under `mcp/` that gives AI assistants direct access to your test quality data.
+
+### Available Tools (20)
+
+| Group | Tools |
+|-------|-------|
+| Auth | `login`, `health_check` |
+| Projects | `list_projects`, `get_project`, `create_project` |
+| Runs | `list_test_runs`, `get_run_details`, `list_test_cases`, `get_test_case` |
+| Metrics | `get_dashboard_metrics`, `get_test_trends` |
+| Analytics | `get_flaky_tests`, `get_failure_categories`, `get_top_failing_tests`, `get_coverage_report`, `get_defects`, `get_ai_analysis_summary` |
+| Analysis | `trigger_ai_analysis`, `search_tests` |
+| Release | `check_release_readiness` |
+
+### Available Prompts (6)
+
+| Prompt | Workflow |
+|--------|---------|
+| `investigate_failure` | Full root-cause investigation for a failing test |
+| `release_readiness_report` | Executive go/no-go assessment |
+| `weekly_quality_digest` | Weekly summary for team sharing |
+| `flakiness_investigation` | Deep-dive with remediation plan |
+| `defect_triage_session` | Structured defect prioritisation |
+| `suite_health_check` | Health report for a specific test suite |
+
+### Example Conversations
+
+```
+You: "What's our pass rate this week for project-alpha?"
+You: "Why is CheckoutTest failing? Investigate it."
+You: "Can we release v2.4.0 today?"
+You: "Which tests are most flaky this month?"
+You: "Generate the weekly quality digest for project-alpha"
 ```
 
 ## Iterative Development Plan
@@ -235,7 +341,8 @@ make build
 | **Phase 4** | Coverage, trends, failure analysis, search | 7–8 |
 | **Phase 5** | AI triage agent (Ollama + LangChain ReAct) | 9–10 |
 | **Phase 6** | Quality Gates, manual test management, BDD | 11–12 |
-| **Phase 7** | Production deployment (OpenShift + CI/CD) | 13–14 |
+| **Phase 7** | MCP Server — AI assistant integration layer | 13 |
+| **Phase 8** | Production deployment (OpenShift + CI/CD) | 14–15 |
 
 ## Environment Variables
 
@@ -245,6 +352,7 @@ Key variables:
 - `LLM_PROVIDER` — `ollama` (default, offline) | `openai` | `gemini`
 - `LLM_MODEL` — `qwen2.5:7b` (default for Ollama)
 - `AI_OFFLINE_MODE` — `true` enforces local-only inference
+- `MCP_USERNAME` / `MCP_PASSWORD` — credentials for the containerised MCP service
 
 ## License
 

@@ -29,3 +29,5 @@ data:
   AI_CONFIDENCE_THRESHOLD: "80"
   CELERY_WORKER_CONCURRENCY: "4"
   CORS_ORIGINS: "https://qainsight.yourdomain.com"
+  # MCP server internal service URL (used by the backend's health endpoint reference only)
+  MCP_SERVICE_URL: "http://qainsight-mcp:8002"

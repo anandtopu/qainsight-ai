@@ -6,9 +6,10 @@ It deploys:
 
 - `backend` to Cloud Run
 - `frontend` to Cloud Run
+- `mcp` to Cloud Run (optional — enables AI assistant integration in CI/hosted environments)
 - PostgreSQL to Cloud SQL
 
-And uses external managed endpoints for services Cloud Run does not host natively as stateful local containers:
+And uses external managed endpoints for services Cloud Run does not host natively:
 
 - MongoDB: MongoDB Atlas
 - Redis: external Redis provider (or Memorystore)
@@ -80,6 +81,13 @@ gcloud secrets create qainsight-frontend-env --replication-policy="automatic"
 gcloud secrets versions add qainsight-frontend-env --data-file=infra/cloudrun/frontend.env
 ```
 
+Create MCP env file from `infra/cloudrun/mcp.env.example`:
+
+```bash
+gcloud secrets create qainsight-mcp-env --replication-policy="automatic"
+gcloud secrets versions add qainsight-mcp-env --data-file=infra/cloudrun/mcp.env
+```
+
 ## 5) Build and push backend image
 
 ```bash
@@ -101,12 +109,11 @@ gcloud run deploy qainsight-backend \
   --port=8000 \
   --memory=1Gi \
   --cpu=1 \
-  --set-secrets=ENV_FILE=qainsight-backend-env:latest \
   --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
   --set-env-vars=APP_ENV=production
 ```
 
-Note: Cloud Run does not automatically parse a dotenv from one env var. Use the explicit env var deploy command below for production use:
+Apply environment variables:
 
 ```bash
 gcloud run services update qainsight-backend \
@@ -114,14 +121,26 @@ gcloud run services update qainsight-backend \
   --env-vars-file=infra/cloudrun/backend.env
 ```
 
-Run migrations from a one-off Cloud Run job or local admin workstation with network access to Cloud SQL.
+Run migrations from a one-off Cloud Run job or local admin workstation with Cloud SQL access:
+
+```bash
+gcloud run jobs create migrate-db \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/backend:latest \
+  --region=${REGION} \
+  --add-cloudsql-instances=INSTANCE_CONNECTION_NAME \
+  --command="alembic" \
+  --args="upgrade,head"
+
+gcloud run jobs execute migrate-db --region=${REGION}
+```
 
 ## 7) Build and push frontend image
 
 Get backend URL:
 
 ```bash
-export BACKEND_URL=$(gcloud run services describe qainsight-backend --region=${REGION} --format='value(status.url)')
+export BACKEND_URL=$(gcloud run services describe qainsight-backend \
+  --region=${REGION} --format='value(status.url)')
 ```
 
 Build frontend with API URL baked at build time:
@@ -145,19 +164,89 @@ gcloud run deploy qainsight-frontend \
   --cpu=1
 ```
 
-## 8) Post-deploy checks
+## 8) Build and deploy MCP server (optional)
+
+The MCP server exposes QA Insight AI to Claude Desktop, IDE plugins, and CI pipelines.
+Deploying it to Cloud Run enables SSE transport for hosted/CI clients.
+
+Build the MCP image:
 
 ```bash
+gcloud builds submit . \
+  --config=infra/cloudrun/cloudbuild.mcp.yaml \
+  --substitutions=_REGION=${REGION},_PROJECT_ID=${PROJECT_ID},_REPO=${REPO}
+```
+
+Deploy MCP to Cloud Run (SSE transport on port 8002):
+
+```bash
+export BACKEND_URL=$(gcloud run services describe qainsight-backend \
+  --region=${REGION} --format='value(status.url)')
+
+gcloud run deploy qainsight-mcp \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/mcp:latest \
+  --region=${REGION} \
+  --platform=managed \
+  --no-allow-unauthenticated \
+  --port=8002 \
+  --memory=256Mi \
+  --cpu=1 \
+  --set-env-vars=QAINSIGHT_API_URL=${BACKEND_URL}
+```
+
+Apply MCP credentials (do NOT embed credentials in the image):
+
+```bash
+gcloud run services update qainsight-mcp \
+  --region=${REGION} \
+  --env-vars-file=infra/cloudrun/mcp.env
+```
+
+Get the MCP SSE URL:
+
+```bash
+export MCP_URL=$(gcloud run services describe qainsight-mcp \
+  --region=${REGION} --format='value(status.url)')
+echo "MCP SSE endpoint: ${MCP_URL}/sse"
+```
+
+### Connecting Claude Desktop to the hosted MCP
+
+Add to `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "qainsight-cloud": {
+      "url": "https://qainsight-mcp-xxxx-uc.a.run.app/sse"
+    }
+  }
+}
+```
+
+> **Security note:** Cloud Run MCP is deployed with `--no-allow-unauthenticated`.
+> Use `gcloud auth print-identity-token` or set up Cloud Run IAM invoker roles for your service account.
+
+## 9) Post-deploy checks
+
+```bash
+# Backend health
 curl "${BACKEND_URL}/health"
+
+# MCP health (via backend)
+curl "${BACKEND_URL}/health"
+
+# List deployed services
 gcloud run services list --region=${REGION}
 ```
 
 Open frontend URL from Cloud Run service output.
 
-## 9) Notes for this repository
+## 10) Notes for this repository
 
 - Backend expects MongoDB, Redis, and S3-compatible storage endpoints via env vars.
 - For cleaner internet deployment, do not run Mongo/Redis/MinIO inside Cloud Run.
 - Use external managed services and map them in `infra/cloudrun/backend.env`.
 - Async workers (`Celery`) are optional for initial testing; many dashboard paths can still be validated without them.
-
+- The MCP server is stateless — it proxies all requests to the backend. No database access required.
+- MCP in stdio mode (Claude Desktop) does not require a Cloud Run deployment — run `make mcp-start` locally against the hosted backend URL.

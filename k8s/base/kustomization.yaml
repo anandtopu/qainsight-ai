@@ -10,6 +10,7 @@ resources:
   - rbac.yaml
   - backend-deployment.yaml
   - frontend-deployment.yaml
+  - mcp-deployment.yaml
   - ollama-deployment.yaml
   - services.yaml
   - ingress.yaml

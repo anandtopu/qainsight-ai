@@ -108,3 +108,17 @@ spec:
     - port: 8001
       targetPort: 8000
   type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qainsight-mcp
+  namespace: qainsight-ai
+spec:
+  selector:
+    app: qainsight-mcp
+  ports:
+    - name: sse
+      port: 8002
+      targetPort: 8002
+  type: ClusterIP
