@@ -1,19 +1,38 @@
-import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Search, Bell, CheckCircle, XCircle } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useProjectStore } from '@/store/projectStore'
 import { projectsService, type Project } from '@/services/projectsService'
 import { useAuthStore } from '@/store/authStore'
 import { UserCircle, LogOut } from 'lucide-react'
+import { useUnreadCount, useNotificationHistory, invalidateNotifications } from '@/hooks/useNotifications'
+import { notificationService } from '@/services/notificationService'
 
 export default function TopBar() {
   const navigate = useNavigate()
   const { activeProject, setActiveProject } = useProjectStore()
   const [projects, setProjects] = useState<Project[]>([])
   const [searchVal, setSearchVal] = useState('')
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
+
+  const { data: unreadData } = useUnreadCount()
+  const { data: recentLogs, mutate: refreshLogs } = useNotificationHistory(false)
+  const unreadCount = unreadData?.unread ?? 0
 
   useEffect(() => {
     projectsService.list().then(setProjects).catch(() => {})
+  }, [])
+
+  // Close bell dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setBellOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -21,6 +40,12 @@ export default function TopBar() {
       navigate(`/search?q=${encodeURIComponent(searchVal.trim())}`)
       setSearchVal('')
     }
+  }
+
+  const handleMarkAll = async () => {
+    await notificationService.markAllRead()
+    refreshLogs()
+    invalidateNotifications()
   }
 
   return (
@@ -53,8 +78,98 @@ export default function TopBar() {
         ))}
       </select>
 
+      {/* Notification bell */}
+      <div ref={bellRef} className="relative">
+        <button
+          onClick={() => setBellOpen(v => !v)}
+          className="relative p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+          aria-label="Notifications"
+        >
+          <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+
+        {bellOpen && (
+          <div className="absolute right-0 top-full mt-2 w-80 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <span className="font-semibold text-slate-200 text-sm">Notifications</span>
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAll}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <Link
+                  to="/settings/notifications"
+                  onClick={() => setBellOpen(false)}
+                  className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  Settings
+                </Link>
+              </div>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto">
+              {!recentLogs || recentLogs.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No notifications yet</p>
+                </div>
+              ) : (
+                <ul>
+                  {recentLogs.slice(0, 15).map(log => (
+                    <li
+                      key={log.id}
+                      className={`px-4 py-3 border-b border-slate-700/50 last:border-0 flex items-start gap-3 hover:bg-slate-700/30 transition-colors ${
+                        !log.is_read ? 'bg-slate-700/20' : ''
+                      }`}
+                    >
+                      <span className="mt-0.5 shrink-0">
+                        {log.status === 'sent' ? (
+                          <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-400" />
+                        )}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm truncate ${!log.is_read ? 'text-slate-200 font-medium' : 'text-slate-400'}`}>
+                          {log.title}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {log.channel.toUpperCase()} · {new Date(log.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      {!log.is_read && (
+                        <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 mt-1.5" />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="px-4 py-2 border-t border-slate-700 bg-slate-800/50">
+              <Link
+                to="/settings/notifications"
+                onClick={() => setBellOpen(false)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Manage notification settings →
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* User profile */}
-      <div className="flex items-center gap-3 ml-4 border-l border-slate-700 pl-4 relative group cursor-pointer h-full">
+      <div className="flex items-center gap-3 border-l border-slate-700 pl-4 relative group cursor-pointer h-full">
         <UserCircle className="w-8 h-8 text-slate-400" />
         <div className="flex flex-col justify-center">
           <span className="text-sm font-medium text-slate-200 leading-none">
@@ -62,13 +177,13 @@ export default function TopBar() {
           </span>
           <span className="text-xs text-slate-500 mt-1 leading-none">{useAuthStore(s => s.user?.role || '')}</span>
         </div>
-        
+
         {/* Dropdown on hover */}
         <div className="absolute right-0 top-12 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-md shadow-lg py-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">
           <div className="px-4 py-2 border-b border-slate-700">
             <p className="text-sm text-slate-300 font-medium">{useAuthStore(s => s.user?.email || '')}</p>
           </div>
-          <button 
+          <button
             onClick={() => useAuthStore.getState().logout()}
             className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700/50 flex items-center gap-2 transition-colors mt-1"
           >

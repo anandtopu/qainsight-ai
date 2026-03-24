@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.deps import get_current_active_user
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
-from app.routers import analyze, analytics, auth, integrations, live, metrics, projects, runs, search, webhooks, debug
+from app.routers import analyze, analytics, auth, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -92,6 +92,7 @@ app.include_router(search.router, dependencies=protected_deps)
 app.include_router(analyze.router, dependencies=protected_deps)
 app.include_router(analytics.router, dependencies=protected_deps)
 app.include_router(integrations.router, dependencies=protected_deps)
+app.include_router(notifications.router, dependencies=protected_deps)
 app.include_router(live.router, dependencies=protected_deps)
 
 # Debug — ADMIN only (role check applied at endpoint level in debug.py)

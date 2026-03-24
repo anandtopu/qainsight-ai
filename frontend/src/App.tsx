@@ -15,8 +15,9 @@ const FailureAnalysisPage = lazy(() => import('@/pages/FailureAnalysisPage'))
 const TrendsPage         = lazy(() => import('@/pages/TrendsPage'))
 const DefectsPage        = lazy(() => import('@/pages/DefectsPage'))
 const SearchPage         = lazy(() => import('@/pages/SearchPage'))
-const ProjectsPage       = lazy(() => import('@/pages/ProjectsPage'))
-const SettingsPage       = lazy(() => import('@/pages/SettingsPage'))
+const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
+const SettingsPage           = lazy(() => import('@/pages/SettingsPage'))
+const NotificationsPage      = lazy(() => import('@/pages/settings/NotificationsPage'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-64">
@@ -63,6 +64,9 @@ export default function App() {
           } />
           <Route path="settings" element={
             <Suspense fallback={<Fallback />}><SettingsPage /></Suspense>
+          } />
+          <Route path="settings/notifications" element={
+            <Suspense fallback={<Fallback />}><NotificationsPage /></Suspense>
           } />
         </Route>
       </Route>

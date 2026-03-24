@@ -72,6 +72,45 @@ def run_ai_analysis(self, test_case_id: str, test_name: str, **kwargs):
 
 
 @celery_app.task(
+    name="app.worker.tasks.dispatch_run_notifications",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=15,
+    queue="default",
+)
+def dispatch_run_notifications(
+    self,
+    project_id: str,
+    run_id: str,
+    build_number: str,
+    pass_rate: float,
+    total_tests: int,
+    failed_tests: int,
+    project_name: str,
+    dashboard_url: str = "#",
+):
+    """Background task: fan-out run-completion notifications to all subscribed users."""
+    import uuid as _uuid
+    from app.services.notification.manager import dispatch_run_notifications as _dispatch
+
+    logger.info("[Task %s] Dispatching run notifications for build=%s", self.request.id, build_number)
+    try:
+        _run_async(_dispatch(
+            project_id=_uuid.UUID(project_id),
+            run_id=_uuid.UUID(run_id),
+            build_number=build_number,
+            pass_rate=pass_rate,
+            total_tests=total_tests,
+            failed_tests=failed_tests,
+            project_name=project_name,
+            dashboard_url=dashboard_url,
+        ))
+    except Exception as exc:
+        logger.error("[Task %s] Notification dispatch failed: %s", self.request.id, exc, exc_info=True)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(
     name="app.worker.tasks.take_coverage_snapshot",
     queue="default",
 )

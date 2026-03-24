@@ -100,7 +100,21 @@ class Settings(BaseSettings):
     # ── Slack ─────────────────────────────────────────────────
     SLACK_ENABLED: bool = False
     SLACK_BOT_TOKEN: Optional[str] = None
+    SLACK_WEBHOOK_URL: Optional[str] = None   # Incoming webhook — preferred over bot token
     SLACK_DEFAULT_CHANNEL: str = "#qa-alerts"
+
+    # ── Microsoft Teams ───────────────────────────────────────
+    TEAMS_ENABLED: bool = False
+    TEAMS_WEBHOOK_URL: Optional[str] = None
+
+    # ── Email / SMTP ──────────────────────────────────────────
+    SMTP_ENABLED: bool = False
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: str = "noreply@qainsight.io"
+    SMTP_TLS: bool = True
 
     # ── Authentication & JWT ──────────────────────────────────
     JWT_SECRET_KEY: str = "change-me-jwt-secret"

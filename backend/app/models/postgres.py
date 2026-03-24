@@ -65,6 +65,21 @@ class UserRole(str, PyEnum):
     ADMIN = "ADMIN"
 
 
+class NotificationChannel(str, PyEnum):
+    EMAIL = "email"
+    SLACK = "slack"
+    TEAMS = "teams"
+
+
+class NotificationEventType(str, PyEnum):
+    RUN_FAILED = "run_failed"
+    RUN_PASSED = "run_passed"
+    HIGH_FAILURE_RATE = "high_failure_rate"
+    AI_ANALYSIS_COMPLETE = "ai_analysis_complete"
+    QUALITY_GATE_FAILED = "quality_gate_failed"
+    FLAKY_TEST_DETECTED = "flaky_test_detected"
+
+
 # ── Models ───────────────────────────────────────────────────
 
 class User(Base):
@@ -290,3 +305,51 @@ class CoverageSnapshot(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "snapshot_date", name="uq_coverage_project_date"),
     )
+
+
+class NotificationPreference(Base):
+    """Per-user, per-channel notification configuration."""
+    __tablename__ = "notification_preferences"
+    __table_args__ = (
+        UniqueConstraint("user_id", "project_id", "channel", name="uq_notif_pref"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # NULL project_id = applies to all projects
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    channel: Mapped[NotificationChannel] = mapped_column(String(20), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # JSON list of NotificationEventType values the user subscribed to
+    events: Mapped[list] = mapped_column(JSON, default=list)
+    # Alert only when pass_rate falls below this percentage
+    failure_rate_threshold: Mapped[Optional[float]] = mapped_column(Float, default=80.0)
+    # Channel-specific overrides (if None, falls back to global settings)
+    email_override: Mapped[Optional[str]] = mapped_column(String(255))
+    slack_webhook_url: Mapped[Optional[str]] = mapped_column(String(2000))
+    teams_webhook_url: Mapped[Optional[str]] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class NotificationLog(Base):
+    """Audit trail for every dispatched notification."""
+    __tablename__ = "notification_logs"
+    __table_args__ = (
+        Index("ix_notif_log_user_created", "user_id", "created_at"),
+        Index("ix_notif_log_project", "project_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    run_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("test_runs.id", ondelete="SET NULL"), nullable=True)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | sent | failed
+    error_detail: Mapped[Optional[str]] = mapped_column(Text)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -1,11 +1,12 @@
 """Pydantic v2 request/response schemas for all API endpoints."""
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
-from app.models.postgres import FailureCategory, LaunchStatus, Severity, TestStatus, UserRole
+from app.models.postgres import FailureCategory, LaunchStatus, NotificationChannel, NotificationEventType, Severity, TestStatus, UserRole
 
 
 # ── Base ─────────────────────────────────────────────────────
@@ -313,3 +314,58 @@ class QualityGateEvaluationResult(BaseModel):
     status: str  # "PASSED" | "FAILED" | "WARNED"
     rules_evaluated: List[dict]
     evaluated_at: datetime
+
+
+# ── Notification Schemas ──────────────────────────────────────
+
+class NotificationPreferenceCreate(BaseModel):
+    """Create or replace a single channel preference."""
+    project_id: Optional[uuid.UUID] = None  # None = all projects
+    channel: NotificationChannel
+    enabled: bool = True
+    events: List[str] = Field(
+        default_factory=lambda: ["run_failed", "high_failure_rate"],
+        description="List of NotificationEventType values",
+    )
+    failure_rate_threshold: float = Field(default=80.0, ge=0.0, le=100.0)
+    email_override: Optional[EmailStr] = None
+    slack_webhook_url: Optional[str] = Field(None, max_length=2000)
+    teams_webhook_url: Optional[str] = Field(None, max_length=2000)
+
+
+class NotificationPreferenceResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    project_id: Optional[uuid.UUID]
+    channel: str
+    enabled: bool
+    events: List[str]
+    failure_rate_threshold: Optional[float]
+    email_override: Optional[str]
+    slack_webhook_url: Optional[str]
+    teams_webhook_url: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationLogResponse(BaseModel):
+    id: uuid.UUID
+    channel: str
+    event_type: str
+    title: str
+    body: str
+    status: str
+    is_read: bool
+    sent_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TestNotificationRequest(BaseModel):
+    channel: NotificationChannel
+    preference_id: Optional[uuid.UUID] = None

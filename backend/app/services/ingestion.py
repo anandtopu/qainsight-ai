@@ -138,6 +138,29 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
             except Exception as ws_err:
                 logger.debug(f"WS broadcast skipped: {ws_err}")
 
+            # Enqueue async notifications (email / Slack / Teams)
+            try:
+                from app.worker.tasks import dispatch_run_notifications as _notify_task
+                from app.models.postgres import Project as _Project
+                async with AsyncSessionLocal() as _db:
+                    _proj_result = await _db.execute(
+                        select(_Project).where(_Project.id == run.project_id)
+                    )
+                    _project = _proj_result.scalar_one_or_none()
+                    _project_name = _project.name if _project else str(run.project_id)
+
+                _notify_task.delay(
+                    project_id=str(run.project_id),
+                    run_id=str(run.id),
+                    build_number=run.build_number,
+                    pass_rate=float(run.pass_rate or 0),
+                    total_tests=int(run.total_tests or 0),
+                    failed_tests=int(run.failed_tests or 0),
+                    project_name=_project_name,
+                )
+            except Exception as notify_err:
+                logger.warning("Failed to enqueue run notifications: %s", notify_err)
+
         except Exception as e:
             await db.rollback()
             logger.error(f"Ingestion failed for run {sentinel.build_number}: {e}", exc_info=True)
