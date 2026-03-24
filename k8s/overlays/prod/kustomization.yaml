@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - worker-hpa.yaml
 
 namespace: qainsight-ai
 
@@ -21,6 +22,22 @@ patches:
     target:
       kind: ConfigMap
       name: qainsight-config
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: Deployment
+      name: qainsight-worker
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-beat
 
 images:
   - name: qainsight/backend

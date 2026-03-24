@@ -252,6 +252,18 @@ make mcp-start     # stdio
 make mcp-sse       # SSE on port 8002
 ```
 
+### Kubernetes async rollout helpers
+
+```bash
+# Wait for worker + beat rollout by environment
+make k8s-rollout-async-dev
+make k8s-rollout-async-staging
+make k8s-rollout-async-prod
+
+# Check async deployment + HPA status in a specific namespace
+make k8s-status-async K8S_NAMESPACE=qainsight-staging
+```
+
 ### Switching LLM providers
 
 Edit `.env`:

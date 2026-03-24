@@ -25,6 +25,22 @@ patches:
       name: qainsight-frontend
 
   - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-beat
+
+  - patch: |-
       apiVersion: v1
       kind: ConfigMap
       metadata:

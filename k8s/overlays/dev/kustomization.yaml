@@ -25,6 +25,23 @@ patches:
       kind: Deployment
       name: qainsight-frontend
 
+  # Keep async footprint small in dev.
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+    target:
+      kind: Deployment
+      name: qainsight-beat
+
   # Override ConfigMap values for dev environment
   - patch: |-
       apiVersion: v1
