@@ -55,6 +55,9 @@ graph TD
         FastAPI[FastAPI Backend Service]
         REST[REST API & Webhook SDK]
         SSE[SSE / WebSocket Streaming]
+        Auth[Authentication & Security]
+        Analytics[Analytics Engine]
+        MockGen[Mock Data Generator]
     end
 
     subgraph AI_Intelligence_Layer [AI & Intelligence Layer]
@@ -86,16 +89,22 @@ graph TD
     %% Client to API Connections
     UI -->|HTTP/REST| FastAPI
     UI -->|Real-Time Data| SSE
+    UI -->|Auth & Token| Auth
+    UI -->|Trend Data| Analytics
     SDK -->|Test Results| REST
     CICD -->|Trigger/Webhooks| REST
     REST --> FastAPI
     SSE --- FastAPI
+    Auth --- FastAPI
+    Analytics --- FastAPI
 
     %% API to Storage Connections
     FastAPI -->|Structured Metrics| PG
     FastAPI -->|Raw Logs| Mongo
     FastAPI -->|Artifacts| MinIO
     FastAPI -->|Enqueue Jobs| Redis
+    MockGen -->|Simulate Results| PG
+    MockGen -->|Simulate Logs| Mongo
 
     %% Async Worker Connections
     Redis -->|Consume Jobs| Worker
