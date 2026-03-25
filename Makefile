@@ -5,7 +5,7 @@
 
 DOCKER_COMPOSE = docker compose
 BACKEND_CONTAINER = qainsight_backend
-OLLAMA_CONTAINER = qainsight_ollama
+OLLAMA_CONTAINER = ollama
 K8S_NAMESPACE ?= qainsight-ai
 
 help: ## Show this help message
@@ -161,7 +161,7 @@ shell-db: ## Open psql in the postgres container
 	$(DOCKER_COMPOSE) exec postgres psql -U ${POSTGRES_USER:-qainsight_user} -d ${POSTGRES_DB:-qainsight}
 
 simulate-upload: ## Simulate a Jenkins test run upload to MinIO (for testing)
-	./scripts/simulate-upload.sh
+	$(DOCKER_COMPOSE) exec backend python /app/scripts/simulate_upload.py
 
 setup-minio: ## Manually configure MinIO bucket and webhook
 	./scripts/setup-minio.sh
