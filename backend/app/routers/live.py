@@ -182,38 +182,35 @@ async def ingest_live_event(
 ):
     """
     Receive a live test execution event from a test runner.
+    This endpoint is a thin producer — it enqueues the event to Redis Streams
+    and returns 202 immediately (~1ms). The actual processing happens
+    asynchronously in the LiveEventStreamConsumer background task.
+
     Supported event types:
-      - run_start: {type, project_id, build_number, total_tests}
-      - test_result: {type, test_name, status, duration_ms, error_message}
+      - run_start:    {type, project_id, build_number, total_tests}
+      - test_result:  {type, test_name, status, duration_ms, error_message, test_case_id?}
       - run_complete: {type}
 
     Protected by X-Webhook-Secret header.
     """
-    from app.agents.live_monitor import LiveMonitorAgent
     from app.db.mongo import Collections, get_mongo_db
+    from app.streams.producer import publish_live_event
 
     event_type = event.get("type", "test_result")
 
-    # Persist raw event to MongoDB for audit
+    # Validate required fields before enqueuing
+    if event_type == "run_start" and not event.get("project_id"):
+        raise HTTPException(400, detail="project_id required for run_start event")
+
+    # Persist raw event to MongoDB for audit trail (non-critical)
     try:
         db = get_mongo_db()
         await db[Collections.LIVE_EXECUTION_EVENTS].insert_one(
             {"run_id": run_id, **event}
         )
     except Exception:
-        pass  # Non-critical
+        pass
 
-    if event_type == "run_start":
-        project_id = event.get("project_id")
-        build_number = event.get("build_number", run_id)
-        if not project_id:
-            raise HTTPException(400, detail="project_id required for run_start event")
-        await LiveMonitorAgent.on_run_start(run_id, project_id, build_number)
-
-    elif event_type == "test_result":
-        await LiveMonitorAgent.on_test_event(run_id, event)
-
-    elif event_type == "run_complete":
-        await LiveMonitorAgent.on_run_complete(run_id)
-
-    return {"accepted": True}
+    # Enqueue to Redis Stream — returns immediately regardless of processing load
+    await publish_live_event(run_id, event)
+    return {"accepted": True, "run_id": run_id, "event_type": event_type}

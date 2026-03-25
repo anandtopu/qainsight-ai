@@ -1,6 +1,7 @@
 """
 QA Insight AI — FastAPI Application Entry Point
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -47,9 +48,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Failed to create MongoDB indexes", error=str(e))
 
+    # Start live event stream consumer (reads from Redis Streams, dispatches to WebSocket)
+    from app.streams.live_consumer import LiveEventStreamConsumer
+    _consumer = LiveEventStreamConsumer()
+    _consumer_task = asyncio.create_task(_consumer.run(), name="live-event-consumer")
+    logger.info("Live event stream consumer started")
+
     yield  # Application runs here
 
-    # Shutdown
+    # Shutdown consumer
+    _consumer_task.cancel()
+    try:
+        await _consumer_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Live event stream consumer stopped")
+
+    # Shutdown DB connections
     await close_db()
     await close_mongo()
     await close_redis()

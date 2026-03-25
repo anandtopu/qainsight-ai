@@ -110,7 +110,20 @@ async def get_pipeline_stages(
 async def get_active_live_runs(_: any = Depends(get_current_active_user)):
     """Get all currently monitored live test runs."""
     from app.agents.live_monitor import LiveMonitorAgent
-    return {"active_runs": LiveMonitorAgent.get_active_runs()}
+    return {"active_runs": await LiveMonitorAgent.get_active_runs()}
+
+
+@router.get("/active-runs/{run_id}")
+async def get_live_run_state(
+    run_id: str,
+    _: any = Depends(get_current_active_user),
+):
+    """Get the current state for a single live test run."""
+    from app.agents.live_monitor import LiveMonitorAgent
+    state = await LiveMonitorAgent.get_run_state(run_id)
+    if not state:
+        raise HTTPException(404, detail="Live run not found or already completed")
+    return state
 
 
 @router.get("/runs/{run_id}/summary")
