@@ -15,7 +15,7 @@ Workflow:
 """
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -135,14 +135,15 @@ class FineTuningPipeline:
           2. Upload to MinIO: training-data/{track}/adapter.gguf
           3. This method downloads it, writes a Modelfile, calls `ollama create`
         """
-        from datetime import datetime
-        version_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+        from datetime import datetime as _dt
+        version_tag = _dt.now(timezone.utc).strftime("%Y%m%d")
         new_model_name = f"{base_model}-qainsight-{track}-{version_tag}"
         gguf_path = training_path.replace(".jsonl", ".gguf")
 
         try:
             from app.db.storage import get_storage
-            import tempfile, os, pathlib
+            import tempfile
+            import pathlib
             storage = get_storage()
             gguf_bytes = await storage.get_object_content(
                 gguf_path, bucket=settings.FINETUNE_EXPORT_BUCKET

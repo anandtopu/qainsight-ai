@@ -21,6 +21,7 @@ from app.db.postgres import get_db
 from app.models.postgres import (
     AIAnalysis,
     AIFeedback,
+    Defect,
     FeedbackRating,
     FailureCategory,
     UserRole,

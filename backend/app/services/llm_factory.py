@@ -144,9 +144,6 @@ def _get_active_model_sync(track: str) -> Optional[str]:
     """
     try:
         import asyncio
-        from app.db.redis_client import get_redis
-        redis = get_redis()
-        key = f"qainsight:model:active:{track}"
         # Use the sync Redis client path if an event loop is already running
         loop = asyncio.get_event_loop()
         if loop.is_running():

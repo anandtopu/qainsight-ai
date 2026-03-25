@@ -22,7 +22,6 @@ import json
 import logging
 import random
 from datetime import datetime, timezone
-from typing import Optional
 
 from sqlalchemy import select, and_
 

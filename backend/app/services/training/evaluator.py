@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.services.llm_factory import get_llm
-from app.services.training.classifier import FastClassifier, _parse_classifier_output
+from app.services.training.classifier import _parse_classifier_output
 
 logger = logging.getLogger("training.evaluator")
 
