@@ -24,6 +24,7 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 | **Offline AI** | Fully air-gapped with Ollama (qwen2.5, llama3, mistral) |
 | **Dashboards** | Pass/fail trends, coverage heatmaps, flaky leaderboard, defect burn-down |
 | **Quality Gates** | Automated GO/NO-GO feedback to Jenkins/GitHub Actions |
+| **Async Processing** | Celery `worker` + `beat` with environment-specific scaling and prod HPA |
 | **Security** | JWT-based authentication with role-based access control (RBAC) |
 | **MCP Server** | 20 tools · 10 resources · 6 prompt workflows for AI assistant integration |
 | **Search** | Full-text + semantic RAG search across all test history |
@@ -32,51 +33,58 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 ## Architecture
 
 ```
-[Java/Python/JS Tests] → [Jenkins/GHA] → [MinIO S3] → [FastAPI Backend]
-                                                              ↓
-                                    [PostgreSQL] ←─── [Ingestion Service]
-                                    [MongoDB]    ←─── [Allure/TestNG Parser]
-                                          ↓
-                              [LangChain ReAct Agent]
-                              [Ollama (local) / OpenAI]
-                                          ↓
-                   ┌──────────────────────┴──────────────────────┐
-                   ↓                                             ↓
-         [React Dashboard] → [Jira Tickets]          [MCP Server :8002]
-                                                           ↓
-                                               [MCP Client / IDE / CI]
+[Tests/CI Upload] -> [FastAPI Backend/API]
+                          |
+                          +-> [PostgreSQL]
+                          +-> [MongoDB]
+                          +-> [MinIO/S3]
+                          +-> [Redis]
+                          |
+                          +-> [AI Agent (LangChain)] -> [Ollama or Cloud LLM]
+
+[Redis] <-> [Celery Worker]
+[Redis] <-> [Celery Beat]
+
+[Frontend SPA] <-> [Backend API]
+[MCP Server :8002] <-> [Backend API]
+
+Deployment targets:
+- Local Docker Compose
+- Kubernetes (dev/staging/prod overlays)
+- OpenShift overlay (Route-based exposure)
+- Cloud deployment paths (GCP Cloud Run/Cloud SQL and multi-cloud Kubernetes)
 ```
 
 ## System Architecture
 
-The following diagram illustrates the microservices, data flow, Agentic AI integration, and MCP layer for QA Insight AI:
+The following diagram reflects the current runtime architecture, async processing, and deployment targets:
 
 ```mermaid
 graph TD
-    subgraph Client_Layer [Client & Ingestion Layer]
+    subgraph Client_Layer [Client and Ingestion]
         UI[React SPA Frontend]
         SDK[Client SDKs: Java, Python, JS, .NET]
         CICD[CI/CD: Jenkins, GitHub Actions]
         MCP_CLIENT[AI Clients: MCP Client / IDE / CI]
     end
 
-    subgraph MCP_Layer [MCP Integration Layer]
+    subgraph MCP_Layer [MCP Integration]
         MCP[MCP Server :8002]
         MCP_TOOLS[20 Tools]
         MCP_RES[10 Resources]
         MCP_PROMPTS[6 Prompt Workflows]
     end
 
-    subgraph API_Layer [API & Application Layer]
+    subgraph API_Layer [API and Application]
         FastAPI[FastAPI Backend Service]
         REST[REST API & Webhook SDK]
         SSE[SSE / WebSocket Streaming]
         Auth[JWT Authentication & Security Middleware]
         Analytics[Analytics Engine]
-        MockGen[Mock Data Generator]
+        Notify[Notification Services (Slack/Teams/Email)]
     end
 
-    subgraph AI_Intelligence_Layer [AI & Intelligence Layer]
+    subgraph AI_Intelligence_Layer [AI and Intelligence]
         Agent[LangChain ReAct Agent]
         Factory[LLM Factory Abstraction]
         Ollama[Ollama Service / Local LLM]
@@ -84,13 +92,14 @@ graph TD
         RAG[Semantic Search / Embeddings]
     end
 
-    subgraph Async_Processing_Layer [Async Processing Layer]
+    subgraph Async_Processing_Layer [Async Processing]
         Redis[Redis Message Broker]
-        Worker[Celery Auto-Analyzer Worker]
+        Worker[Celery Worker]
+        Beat[Celery Beat Scheduler]
         Gates[Quality Gate Engine]
     end
 
-    subgraph Data_Persistence_Layer [Data Persistence Layer]
+    subgraph Data_Persistence_Layer [Data Persistence]
         PG[(PostgreSQL - Relational)]
         Mongo[(MongoDB - Unstructured)]
         MinIO[(MinIO - Object Storage)]
@@ -100,6 +109,13 @@ graph TD
     subgraph External_Integrations [External Integrations]
         Jira[Bug Tracking: Jira]
         Slack[Notifications: Slack / Teams]
+    end
+
+    subgraph Deployment_Targets [Deployment Targets]
+        Compose[Docker Compose (local/dev)]
+        K8s[Kubernetes overlays: dev/staging/prod]
+        OCP[OpenShift overlay + Routes]
+        Cloud[GCP Cloud Run + Cloud SQL path]
     end
 
     %% MCP Client connections
@@ -128,13 +144,14 @@ graph TD
     FastAPI -->|Raw Logs| Mongo
     FastAPI -->|Artifacts| MinIO
     FastAPI -->|Enqueue Jobs| Redis
-    MockGen -->|Simulate Results| PG
-    MockGen -->|Simulate Logs| Mongo
+    FastAPI -->|Notification Events| Notify
 
     %% Async Worker Connections
     Redis -->|Consume Jobs| Worker
+    Redis -->|Schedules| Beat
     Worker -->|Update Status| PG
     Worker -->|Evaluate Rules| Gates
+    Beat -->|Periodic Tasks| Worker
     Gates -->|GO/NO-GO Webhooks| CICD
     Gates -->|Alerts| Slack
 
@@ -149,6 +166,11 @@ graph TD
 
     %% External Tool Invocations
     Agent -->|Auto-Create Defects| Jira
+
+    FastAPI --- Compose
+    FastAPI --- K8s
+    FastAPI --- OCP
+    FastAPI --- Cloud
 ```
 
 ## Quick Start (Local Development)
@@ -164,6 +186,12 @@ git clone https://github.com/yourorg/qainsight-ai.git
 cd qainsight-ai
 cp .env.example .env
 # Edit .env — see Environment Variables section
+```
+
+Windows PowerShell equivalent:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 ### 2. Start the Stack
@@ -273,6 +301,9 @@ qainsight-ai/
 # Start all services
 make dev
 
+# Alternative (if make is unavailable on your shell)
+docker compose up -d --build
+
 # Run backend tests
 make test-backend
 
@@ -293,7 +324,20 @@ make mcp-install && make mcp-start
 
 # MCP server (SSE — for CI/web clients)
 make mcp-sse
+
+# Kubernetes async rollout checks
+make k8s-rollout-async-dev
+make k8s-rollout-async-staging
+make k8s-rollout-async-prod
 ```
+
+## Deployment Documentation
+
+- `installation.md` - installation + deployment entry points (local, GCP VM, Cloud Run)
+- `deployment_and_testing_strategy.md` - validation and release strategy by environment
+- `deploymentsteps.md` - detailed GCP VM operational runbook
+- `docs/cloud-run-cloud-sql.md` - managed GCP deployment path
+- `docs/JENKINS_PIPELINE.md` - Jenkins CI/CD pipeline usage
 
 ## MCP Server
 

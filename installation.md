@@ -1,13 +1,26 @@
 # QA Insight AI Installation and Deployment Guide
 
-This guide consolidates the Google Cloud instructions shared earlier and adds ready-to-use deployment assets for:
+This guide reflects the current platform architecture and deployment options:
 
-1. Single-VM deployment on Google Compute Engine (free-tier friendly)
-2. Cleaner internet-accessible deployment path with Cloud Run + Cloud SQL
+1. Local development with Docker Compose
+2. Single-VM deployment on Google Compute Engine (cost-aware)
+3. Cloud Run + Cloud SQL deployment on GCP
+4. Kubernetes/OpenShift deployment with environment overlays
+5. Multi-cloud Kubernetes path (AWS/GCP/Azure/private)
 
 ---
 
-## 1) What is realistic on Google Cloud free tier
+## 1) Current deployment model (quick map)
+
+- **Local/dev:** `docker compose` with optional `worker`, `beat`, `ollama`, `chromadb`
+- **Kubernetes:** `k8s/overlays/dev`, `k8s/overlays/staging`, `k8s/overlays/prod`
+- **OpenShift:** `k8s/overlays/openshift` (Route based exposure)
+- **Managed cloud path:** `docs/cloud-run-cloud-sql.md` for GCP
+- **CI/CD:** GitHub Actions and Jenkins pipeline in `Jenkinsfile`
+
+---
+
+## 2) What is realistic on Google Cloud free tier
 
 The current stack in `docker-compose.yml` includes multiple stateful services and AI components. On an Always Free VM, running everything at once is usually not practical.
 
@@ -21,7 +34,7 @@ Recommended baseline for testing:
 
 ---
 
-## 2) GCP prerequisites
+## 3) GCP prerequisites
 
 - A Google Cloud account with billing enabled
 - Docker knowledge and Git access to this repo
@@ -34,7 +47,7 @@ Set budget alerts before deploying:
 
 ---
 
-## 3) Compute Engine VM deployment (free-tier friendly)
+## 4) Compute Engine VM deployment (cost-aware)
 
 ### 3.1 Create project and VM
 
@@ -92,7 +105,7 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-### 3.3 Deploy this repository with GCP compose override
+### 4.3 Deploy this repository with GCP compose override
 
 ```bash
 git clone https://github.com/yourorg/qainsight-ai.git
@@ -100,7 +113,7 @@ cd qainsight-ai
 cp .env.gcp-vm.example .env
 ```
 
-Edit `.env` — set real secrets, `MCP_USERNAME`, `MCP_PASSWORD`, and the VM public IP as `QAINSIGHT_API_URL`, then start:
+Edit `.env` — set real secrets, `MCP_USERNAME`, `MCP_PASSWORD`, and the VM public IP for `VITE_API_BASE_URL`, then start:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml up -d --build
@@ -126,7 +139,7 @@ Open:
 - `http://<VM_IP>:8000/docs` — backend API docs
 - `http://<VM_IP>:8002/sse` — MCP SSE endpoint (for AI assistant integration)
 
-### 3.4 Connect your AI Assistant to the VM-hosted MCP
+### 4.4 Connect your AI Assistant to the VM-hosted MCP
 
 On your local machine, add to your MCP client configuration:
 
@@ -158,13 +171,13 @@ Or use stdio mode (runs locally, connects to the remote backend):
 }
 ```
 
-### 3.5 Optional: enable async workers later
+### 4.5 Optional: enable async workers later
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml --profile async up -d worker beat
 ```
 
-### 3.6 Optional: enable local AI later (not free-tier friendly)
+### 4.6 Optional: enable local AI later (not free-tier friendly)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml --profile ai up -d ollama chromadb
@@ -172,7 +185,7 @@ docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml --profile ai u
 
 ---
 
-## 4) Cloud Run + Cloud SQL deployment path (cleaner internet access)
+## 5) Cloud Run + Cloud SQL deployment path (cleaner internet access)
 
 This path gives cleaner public access for frontend/backend/MCP while moving PostgreSQL to managed Cloud SQL.
 
@@ -188,7 +201,37 @@ Use `docs/cloud-run-cloud-sql.md` for full steps.
 
 ---
 
-## 5) Security baseline
+## 6) Kubernetes and OpenShift deployment path
+
+Use Kustomize overlays for environment-specific rollout:
+
+```bash
+# Kubernetes
+kubectl apply -k k8s/overlays/dev
+kubectl apply -k k8s/overlays/staging
+kubectl apply -k k8s/overlays/prod
+
+# OpenShift-compatible overlay (includes Route resources)
+kubectl apply -k k8s/overlays/openshift
+```
+
+Async runtime checks:
+
+```bash
+make k8s-rollout-async-dev
+make k8s-rollout-async-staging
+make k8s-rollout-async-prod
+```
+
+Notes:
+
+- `worker` and `beat` are deployed as first-class workloads.
+- Production overlay includes worker HPA for queue-driven scaling.
+- OpenShift overlay removes fixed backend UID and uses Route exposure.
+
+---
+
+## 7) Security baseline
 
 - Use strong random values for `APP_SECRET_KEY` and `JWT_SECRET_KEY`
 - Set `MCP_USERNAME` and `MCP_PASSWORD` — the MCP container authenticates to the backend using these
@@ -199,7 +242,7 @@ Use `docs/cloud-run-cloud-sql.md` for full steps.
 
 ---
 
-## 6) Cost control checklist
+## 8) Cost control checklist
 
 - Create billing budget alerts
 - Stop VM when not in use:
@@ -224,7 +267,7 @@ docker system prune -af
 
 ---
 
-## 7) Quick troubleshooting
+## 9) Quick troubleshooting
 
 - Backend unhealthy:
 
@@ -253,3 +296,15 @@ docker compose exec mcp python -c "import httpx; import asyncio; print(asyncio.r
 ```
 
 - MCP authentication errors: verify `MCP_USERNAME` and `MCP_PASSWORD` in `.env` match a registered user (POST /api/v1/auth/register).
+
+---
+
+## 10) Multi-cloud deployment references
+
+- `deployment_and_testing_strategy.md` - environment-level deployment/testing strategy
+- `deploymentsteps.md` - beginner-friendly GCP VM runbook
+- `docs/cloud-run-cloud-sql.md` - managed GCP service path
+- `docs/MULTI_CLOUD_DEPLOYMENT_STRATEGY.md` - AWS/GCP/Azure/private cloud platform mapping
+- `docs/JENKINS_PIPELINE.md` - Jenkins CI/CD reference
+- `README.md` - architecture and system diagram
+

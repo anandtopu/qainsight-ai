@@ -1,6 +1,8 @@
 # QA Insight AI — GCP Deployment Guide
 ### For Beginners | 2-Developer Team | Lowest Cost (~$2–3/month)
 
+> This document is the **VM-based deployment runbook**. For Kubernetes/OpenShift and multi-cloud strategies, also review `deployment_and_testing_strategy.md`, `installation.md`, and `docs/cloud-run-cloud-sql.md`.
+
 ---
 
 ## Table of Contents
@@ -81,6 +83,14 @@ Your Browser / Developer Machine
   │           ┌────────┐ ┌───────┐  │   │
   │           │ Redis  │ │ MinIO │  │   │
   │           └────────┘ └───────┘  │   │
+  │           ┌───────────────┐      │   │
+  │           │ Celery Worker │      │   │
+  │           │ Celery Beat   │      │   │
+  │           └───────────────┘      │   │
+  │           ┌───────────────┐      │   │
+  │           │ MCP Server    │      │   │
+  │           │ Port 8002     │      │   │
+  │           └───────────────┘      │   │
   └─────────────────────────────────────┘
           |
           | (API calls)
@@ -95,7 +105,8 @@ Your Browser / Developer Machine
 - **MongoDB** — stores raw logs and stack traces
 - **Redis** — message broker for background jobs
 - **MinIO** — S3-compatible file storage for test artifacts
-- **Celery Worker** — processes AI analysis jobs in the background
+- **Celery Worker + Beat** — processes AI analysis and scheduled jobs
+- **MCP Server** — optional SSE endpoint for AI assistant integration
 
 **NOT running on VM (to save resources and cost):**
 - Ollama (local AI) — replaced by free Gemini API
@@ -206,7 +217,7 @@ This allows you and your teammate to reach the application from your browsers:
 
 ```bash
 gcloud compute firewall-rules create qainsight-allow-web \
-  --allow=tcp:22,tcp:80,tcp:8000 \
+  --allow=tcp:22,tcp:80,tcp:8000,tcp:8002 \
   --target-tags=qainsight-web \
   --source-ranges=0.0.0.0/0 \
   --description="Allow SSH, frontend, and backend access"
@@ -216,6 +227,7 @@ gcloud compute firewall-rules create qainsight-allow-web \
 - `22` — SSH (secure remote access to the VM)
 - `80` — Frontend web dashboard
 - `8000` — Backend API and its documentation page
+- `8002` — MCP SSE endpoint (optional; expose only if required)
 
 ---
 

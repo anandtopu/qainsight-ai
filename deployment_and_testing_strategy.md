@@ -1,82 +1,160 @@
 # QA Insight AI: Deployment and Testing Strategy
 
-This document provides a comprehensive strategy to deploy and test the QA Insight AI application on your Local Machine and Google Cloud Platform (GCP). By following this strategy, you can ensure a reliable rollout while avoiding common deployment errors.
+This document defines a practical release strategy across local development, Kubernetes/OpenShift, and cloud platforms while preserving one application architecture.
 
 ---
 
-## Part 1: Local Machine Deployment & Testing Strategy
+## 1) Strategy goals
 
-Local deployment uses Docker Compose to run the full stack, including the local LLM (Ollama) and vector database (ChromaDB) if desired.
-
-### 1. Pre-Deployment Setup
-* **Prerequisites**: Ensure you have Docker Desktop 4.x+, Node.js 20 LTS, and Python 3.11+ installed.
-* **Environment Configuration**: 
-  * Clone the repository.
-  * Run `cp .env.example .env` and configure any specific local constraints.
-  * Generate a JWT secret: `echo "JWT_SECRET_KEY: $(openssl rand -hex 32)"` and add it to `.env`.
-  * Ensure ports `3000` (Frontend), `8000` (Backend API), `5432` (Postgres), `27017` (Mongo), `6379` (Redis), `9000/9001` (MinIO), and `11434` (Ollama) are free on your machine.
-
-### 2. Deployment Execution
-* **Start the Stack**: Run `make dev` (which executes `docker compose up -d --build`).
-* **Initialize Database**: Run `make migrate` to apply Alembic migrations.
-* **Fetch AI Models (Optional)**: Run `make pull-llm` to download `qwen2.5:7b` for local offline AI inference.
-
-### 3. Testing & Verification
-To ensure the local application is error-free, follow these testing phases:
-
-* **Automated Testing Suite**: 
-  * Run `make test-backend` to execute pytest for backend endpoints.
-  * Run `make test-frontend` to run Vitest for UI components.
-  * Run `make test-e2e` for Playwright end-to-end testing.
-* **Component Health Checks**:
-  * Verify the backend is up by calling `curl http://localhost:8000/health`.
-  * Ensure the MinIO console is accessible at `http://localhost:9001` (admin/password123).
-  * Check the Celery worker and broker using Flower at `http://localhost:5555`.
-* **Manual UI & Integration Check**:
-  * Create a user via the Swagger API Docs (`http://localhost:8000/docs#/Authentication/register_api_v1_auth_register_post`).
-  * Open `http://localhost:3000` in your browser and log in with the newly created credentials.
-  * Create a sample test run to verify the async ingestion worker and database layers (Postgres & Mongo) operate successfully.
+- Keep one application codebase and one container set (`backend`, `frontend`, `mcp`).
+- Enable environment-specific runtime behavior through overlays and env vars.
+- Validate async workloads (`worker`, `beat`) explicitly in all non-local targets.
+- Support public cloud and private cloud without forking manifests.
 
 ---
 
-## Part 2: Google Cloud Platform (GCP) Deployment & Testing Strategy
+## 2) Deployment targets
 
-The GCP strategy utilizes a single `e2-medium` VM instance deploying with Docker Compose. To save on RAM and disk costs, we swap the local Ollama LLM for the Google Gemini free API.
-
-### 1. Pre-Deployment Setup
-* **Provision the VM**: Create an `e2-medium` Debian 12 VM with a 30GB standard persistent disk.
-* **Configure Firewall**: Open ports `22` (SSH), `80` (Frontend), and `8000` (Backend).
-* **Install Docker**: Install Docker and Docker Compose plugin on the VM.
-* **Get API Keys**: Obtain a free Gemini API Key for lightweight cloud AI.
-
-### 2. Deployment Execution
-* **Configuration**: 
-  * SSH into the VM, clone the repo, and run `cp .env.gcp-vm.example .env`.
-  * Update `.env` with strong passwords, the Gemini `GOOGLE_API_KEY`, and set `VITE_API_BASE_URL` to your VM's external IP address.
-* **Add Swap Memory**: To prevent Out-Of-Memory (OOM) crashes, configure a 2GB swap file (`sudo fallocate -l 2G /swapfile`, `mkswap`, `swapon`).
-* **Start Core Services**: 
-  * Run `docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml up -d --build`.
-  * Apply migrations: `docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml exec backend alembic upgrade head`.
-* **Start Async Workers**:
-  * `docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml --profile async up -d worker beat`.
-
-### 3. Testing & Verification
-Since the GCP environment replaces local models with cloud APIs and relies on dynamic IPs, testing focuses on integration and resource stability.
-
-* **Health and Port Checks**:
-  * Run `curl http://localhost:8000/health` directly from the VM SSH terminal to ensure the API resolves internally.
-  * Access `http://<VM_External_IP>` from your personal browser. If it fails, verify GCP Firewall rules and container statuses.
-* **Database & Migration Sanity**:
-  * Run `docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml exec backend alembic current` to verify schemas align with the application base.
-* **AI Provider Test**:
-  * Ensure the Gemini API works by checking the `backend` Docker logs or manually curling the GenerateLanguage API from the VM terminal.
-* **Load/Resource Monitoring**:
-  * Monitor VM memory via `docker stats` and `free -h` to ensure the 2GB swap file handles the background workers correctly. Make sure `backend` doesn't OOM restart.
+1. **Local Docker Compose** - full-stack developer environment.
+2. **GCP VM + Compose override** - low-cost internet-accessible team environment.
+3. **Cloud Run + Cloud SQL (GCP)** - managed stateless app services.
+4. **Kubernetes overlays** - `dev`, `staging`, `prod`.
+5. **OpenShift overlay** - Route-based exposure and SCC-friendly security context.
 
 ---
 
-## Post-Deployment Workflow (GCP Cost Management)
-Because GCP charges by the hour for compute, coordinate with your team to safely stop and resume the VM:
-1. **Stop down gracefully**: `docker compose ... down` to flush states safely.
-2. **Stop the VM**: Stop the instance from the GCP Console or CLI.
-3. **Re-starting**: The VM External IP will change. Always update `VITE_API_BASE_URL` in `.env` and rebuild the frontend container (`docker compose ... up -d --build frontend`) when you spin it up the next day.
+## 3) Local machine deployment and testing
+
+### 3.1 Deploy
+
+```bash
+docker compose up -d --build
+docker compose exec backend alembic upgrade head
+```
+
+### 3.2 Validate
+
+```bash
+docker compose ps
+curl http://localhost:8000/health
+```
+
+### 3.3 Test sequence
+
+```bash
+make test-backend
+make test-frontend
+make test-e2e
+```
+
+Gate to pass before promoting:
+
+- API health endpoint returns healthy.
+- Authentication flow works from UI.
+- At least one ingestion scenario completes end-to-end.
+
+---
+
+## 4) Kubernetes and OpenShift deployment strategy
+
+### 4.1 Environment overlays
+
+- `k8s/overlays/dev`: low resource, `beat=0`, `worker=1`
+- `k8s/overlays/staging`: pre-prod validation, `beat=1`, `worker=1`
+- `k8s/overlays/prod`: production profile, `beat=1`, `worker=3` + worker HPA
+- `k8s/overlays/openshift`: Route resources and OpenShift security-context patch
+
+### 4.2 Deploy commands
+
+```bash
+kubectl apply -k k8s/overlays/dev
+kubectl apply -k k8s/overlays/staging
+kubectl apply -k k8s/overlays/prod
+kubectl apply -k k8s/overlays/openshift
+```
+
+### 4.3 Async rollout gates
+
+```bash
+make k8s-rollout-async-dev
+make k8s-rollout-async-staging
+make k8s-rollout-async-prod
+```
+
+Release gate to pass before promoting overlay:
+
+- backend rollout healthy
+- worker/beat rollout healthy
+- migrations applied
+- `/health` and UI smoke tests pass
+
+---
+
+## 5) GCP VM deployment strategy (cost-aware)
+
+Use for team-shared dev/test where managed services are not yet required.
+
+Deploy:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml exec backend alembic upgrade head
+docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml --profile async up -d worker beat
+```
+
+Validation:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gcp-vm.yml ps
+curl http://localhost:8000/health
+```
+
+---
+
+## 6) Cloud Run + Cloud SQL strategy (managed path)
+
+Use for cleaner internet exposure and managed PostgreSQL.
+
+- Deploy `backend`, `frontend`, and optional `mcp` as Cloud Run services.
+- Use Cloud SQL for PostgreSQL.
+- Use managed/external MongoDB, Redis, and object storage.
+- Run Celery as Cloud Run Jobs or a separate worker platform if async load is required.
+
+See `docs/cloud-run-cloud-sql.md` for full operational steps.
+
+---
+
+## 7) Multi-cloud strategy (AWS/GCP/Azure/private)
+
+- **Runtime standard:** Kubernetes manifests and overlays.
+- **Registry:** ECR/Artifact Registry/ACR as cloud-specific implementations.
+- **Secrets:** cloud-native secret managers or Vault with External Secrets.
+- **Data tier:** managed Postgres/Redis/Mongo-compatible services per platform.
+- **Ingress:** Ingress controller on Kubernetes; Route on OpenShift.
+
+---
+
+## 8) Promotion and rollback model
+
+Promotion order:
+
+1. Local verification
+2. Dev overlay
+3. Staging overlay
+4. Prod overlay
+
+Rollback policy:
+
+- revert to last known-good image tags
+- re-apply previous overlay revision
+- re-run smoke checks (`/health`, auth, ingestion sample)
+
+---
+
+## 9) Operational checks per deployment
+
+- **Service health:** backend `/health`, UI reachable, MCP SSE (if enabled)
+- **Data path:** DB migration version current, ingestion write/read sanity
+- **Async path:** worker queue consumption, beat periodic task execution
+- **Security:** no plaintext secrets in docs or manifests, only placeholders
+- **Observability:** logs available for backend/worker/beat and deployment events

@@ -11,6 +11,7 @@ This document describes the Jenkins pipeline provided in `Jenkinsfile` for QA In
 - Builds production images for `backend`, `frontend`, and `mcp`
 - Optionally pushes images to a registry
 - Optionally deploys to a remote GCP VM over SSH and runs Alembic migrations
+- Supports Kubernetes/OpenShift promotion workflows via repository overlays and Make helpers
 
 ## Jenkins prerequisites
 
@@ -25,6 +26,9 @@ This document describes the Jenkins pipeline provided in `Jenkinsfile` for QA In
   - JUnit
   - Workspace Cleanup
   - ANSI Color (optional but recommended)
+- Tooling:
+  - `kubectl`
+  - `kustomize` (needed when updating overlay image tags)
 
 ## Required Jenkins credentials
 
@@ -84,4 +88,19 @@ Remote deploy command flow:
 - The pipeline intentionally runs checks in containers to keep host dependencies minimal.
 - If your Jenkins node is resource-constrained, split testing and deployment into separate jobs.
 - If you deploy by image digest instead of source pull, adapt the deploy stage to pull immutable tags and update compose files accordingly.
+
+## Useful deployment checks after Jenkins rollout
+
+```bash
+# Verify async components in each environment
+make k8s-rollout-async-dev
+make k8s-rollout-async-staging
+make k8s-rollout-async-prod
+
+# Inspect worker/beat deployments and HPAs
+make k8s-status-async K8S_NAMESPACE=qainsight-ai
+
+# OpenShift Route status (if using OpenShift)
+make k8s-status-openshift K8S_NAMESPACE=qainsight-ai
+```
 

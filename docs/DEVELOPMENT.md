@@ -11,6 +11,9 @@ cp .env.example .env
 # 2. Start all services
 make dev
 
+# If make is unavailable on your shell (common on Windows)
+docker compose up -d --build
+
 # 3. Run database migrations
 make migrate
 
@@ -160,6 +163,7 @@ qainsight-ai/
 │   │   ├── secrets.yaml         ← TEMPLATE ONLY — never commit real values
 │   │   ├── rbac.yaml
 │   │   ├── backend-deployment.yaml  (+ HPA)
+│   │   ├── worker-deployments.yaml  ← Celery worker + beat workloads
 │   │   ├── frontend-deployment.yaml
 │   │   ├── mcp-deployment.yaml      ← MCP server (SSE transport)
 │   │   ├── ollama-deployment.yaml   (+ PVC)
@@ -168,7 +172,8 @@ qainsight-ai/
 │   └── overlays/
 │       ├── dev/kustomization.yaml
 │       ├── staging/kustomization.yaml
-│       └── prod/kustomization.yaml
+│       ├── prod/kustomization.yaml
+│       └── openshift/kustomization.yaml
 │
 ├── infra/cloudrun/              ← Cloud Run deployment assets
 │   ├── backend.env.example

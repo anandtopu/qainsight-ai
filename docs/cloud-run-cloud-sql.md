@@ -9,6 +9,11 @@ It deploys:
 - `mcp` to Cloud Run (optional — enables AI assistant integration in CI/hosted environments)
 - PostgreSQL to Cloud SQL
 
+Async background processing note:
+
+- `worker` and `beat` are first-class runtime components in this project.
+- On Cloud Run, run them as Cloud Run Jobs (scheduled/invoked) or move to GKE for persistent worker behavior.
+
 And uses external managed endpoints for services Cloud Run does not host natively:
 
 - MongoDB: MongoDB Atlas
@@ -233,8 +238,8 @@ Add to your MCP client configuration:
 # Backend health
 curl "${BACKEND_URL}/health"
 
-# MCP health (via backend)
-curl "${BACKEND_URL}/health"
+# MCP SSE endpoint (if deployed)
+curl "${MCP_URL}/sse"
 
 # List deployed services
 gcloud run services list --region=${REGION}
@@ -247,6 +252,7 @@ Open frontend URL from Cloud Run service output.
 - Backend expects MongoDB, Redis, and S3-compatible storage endpoints via env vars.
 - For cleaner internet deployment, do not run Mongo/Redis/MinIO inside Cloud Run.
 - Use external managed services and map them in `infra/cloudrun/backend.env`.
-- Async workers (`Celery`) are optional for initial testing; many dashboard paths can still be validated without them.
+- Async workers (`Celery worker` + `beat`) are required for full production behavior.
+- For Cloud Run-only deployments, implement async processing via Cloud Run Jobs and Cloud Scheduler, or adopt GKE for always-on workers.
 - The MCP server is stateless — it proxies all requests to the backend. No database access required.
 - MCP in stdio mode (MCP Clients) does not require a Cloud Run deployment — run `make mcp-start` locally against the hosted backend URL.
