@@ -8,8 +8,11 @@ QA Insight AI is a 360-degree testing intelligence platform that ingests test re
 
 - FastAPI backend for ingestion, analytics, and AI orchestration
 - React dashboard for trends, flaky tests, defects, and release signals
-- LangChain ReAct agent with investigation tools (stack traces, payloads, logs, infra events)
+- LangChain ReAct agent with 5 investigation tools (stack traces, payloads, Splunk logs, flakiness, OCP events)
+- **Deep Investigation Agent Network** — on-demand 9-stage LangGraph pipeline: semantic failure clustering, distributed trace reconstruction, log anomaly detection, API contract validation, flaky lifecycle analysis, test health scoring, and a GO/NO_GO release gate
+- **Release Gate** — AI-backed release recommendation (GO / NO_GO / CONDITIONAL_GO) with risk score, blocking issues list, and QA Lead override with full audit trail
 - Local LLM mode via Ollama for air-gapped/offline deployments
+- Continuous fine-tuning pipeline — self-improving models trained on your own verified failure data
 - MCP server for AI assistants and CI integrations
 
 ## Architecture at a Glance
@@ -22,15 +25,39 @@ FastAPI Backend (backend:8000)
 PostgreSQL | MongoDB | Redis | MinIO | ChromaDB | Ollama
       ↓
 Celery Workers (AI triage, quality gates)
+      ↓
+┌── Standard Pipeline (LangGraph) ──────────────────────────────────────┐
+│   ingestion → anomaly → root_cause → summary → triage → END           │
+└────────────────────────────────────────────────────────────────────────┘
+┌── Deep Investigation Pipeline (LangGraph) ─────────────────────────────┐
+│   ingestion → (parallel) anomaly + root_cause + failure_clustering     │
+│            → summary → triage → flaky_sentinel → test_health           │
+│            → release_risk (GO/NO_GO/CONDITIONAL_GO) → END              │
+└────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Deep Investigation Agents
+
+| Agent | Role |
+|-------|------|
+| `ClusterAgent` | Semantically groups similar failures — reduces O(n) LLM calls to O(k) |
+| `LogIntelligenceAgent` | Reconstructs distributed Splunk traces; detects log rate anomalies |
+| `ContractAgent` | Validates REST API schema against historical MongoDB baselines |
+| `FlakySentinelAgent` | Traces flakiness onset build; correlates GitHub commits; recommends quarantine |
+| `TestHealthAgent` | Scans automation code for anti-patterns; computes 0–100 health score |
+| `ReleaseRiskAgent` | LLM-backed GO / NO_GO / CONDITIONAL_GO with heuristic fast-path |
 
 ## Repository Layout
 
-- `backend/`: FastAPI services, routers, models, workers
-- `frontend/`: React + Vite UI
-- `mcp/`: MCP server (tools, resources, prompts)
-- `k8s/`: Kustomize base and overlays
-- `docs/`: engineering and deployment docs
+- `backend/app/agents/` — LangGraph multi-agent workflow (standard + deep pipelines; 6 deep agents)
+- `backend/app/tools/` — 11 LangChain tools (5 standard + 6 deep investigation)
+- `backend/app/routers/` — REST API route handlers (incl. `deep_investigation.py`, `release_readiness.py`)
+- `backend/migrations/versions/0006_deep_investigation.py` — failure_clusters, deep_findings, release_decisions, contract_violations tables
+- `frontend/src/pages/` — React pages (incl. `DeepInvestigationPage.tsx`, `ReleaseGatePage.tsx`)
+- `frontend/src/services/deepInvestigationService.ts` — deep investigate + release readiness API client
+- `mcp/` — MCP server (tools, resources, prompts)
+- `k8s/` — Kustomize base and overlays
+- `docs/` — engineering and deployment docs
 
 ## Local Development (Docker)
 
@@ -123,8 +150,9 @@ docker compose exec backend pytest tests/ -v
 
 ## More Documentation
 
-- `README.md`
-- `docs/DEVELOPMENT.md`
-- `docs/cloud-run-cloud-sql.md`
-- `CLAUDE.md`
+- `README.md` — full feature reference, architecture diagram, environment variables, Deep Investigation section
+- `docs/DEVELOPMENT.md` — developer workflow, project structure, iterative phases (P1–P13)
+- `docs/cloud-run-cloud-sql.md` — managed GCP deployment path
+- `docs/JENKINS_PIPELINE.md` — Jenkins CI/CD pipeline usage
+- `CLAUDE.md` — codebase conventions and coding rules
 

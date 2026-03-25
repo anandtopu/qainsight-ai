@@ -18,8 +18,10 @@ const SearchPage         = lazy(() => import('@/pages/SearchPage'))
 const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
 const SettingsPage           = lazy(() => import('@/pages/SettingsPage'))
 const NotificationsPage      = lazy(() => import('@/pages/settings/NotificationsPage'))
-const ChatPage               = lazy(() => import('@/pages/ChatPage'))
-const AgentStatusPage        = lazy(() => import('@/pages/AgentStatusPage'))
+const ChatPage                  = lazy(() => import('@/pages/ChatPage'))
+const AgentStatusPage           = lazy(() => import('@/pages/AgentStatusPage'))
+const DeepInvestigationPage     = lazy(() => import('@/pages/DeepInvestigationPage'))
+const ReleaseGatePage           = lazy(() => import('@/pages/ReleaseGatePage'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-64">
@@ -78,6 +80,18 @@ export default function App() {
           } />
           <Route path="agents/run/:runId" element={
             <Suspense fallback={<Fallback />}><AgentStatusPage /></Suspense>
+          } />
+          <Route path="deep-investigate" element={
+            <Suspense fallback={<Fallback />}><DeepInvestigationPage /></Suspense>
+          } />
+          <Route path="deep-investigate/:runId" element={
+            <Suspense fallback={<Fallback />}><DeepInvestigationPage /></Suspense>
+          } />
+          <Route path="release-gate" element={
+            <Suspense fallback={<Fallback />}><ReleaseGatePage /></Suspense>
+          } />
+          <Route path="release-gate/:runId" element={
+            <Suspense fallback={<Fallback />}><ReleaseGatePage /></Suspense>
           } />
         </Route>
       </Route>

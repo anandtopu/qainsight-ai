@@ -481,6 +481,84 @@ class ModelVersion(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
+class FailureCluster(Base):
+    """Semantic cluster of failures grouped by root-cause similarity."""
+    __tablename__ = "failure_clusters"
+    __table_args__ = (
+        Index("ix_failure_clusters_run", "test_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False)
+    pipeline_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("agent_pipeline_runs.id", ondelete="SET NULL"), nullable=True)
+    cluster_id: Mapped[str] = mapped_column(String(20), nullable=False)           # e.g. "cl_001"
+    label: Mapped[str] = mapped_column(String(500), nullable=False)               # short human-readable label
+    representative_error: Mapped[Optional[str]] = mapped_column(Text)
+    member_test_ids: Mapped[list] = mapped_column(JSON, default=list)             # list[str] UUIDs
+    size: Mapped[int] = mapped_column(Integer, default=1)
+    cohesion_score: Mapped[Optional[float]] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DeepFinding(Base):
+    """Deep investigation result per failure cluster."""
+    __tablename__ = "deep_findings"
+    __table_args__ = (
+        Index("ix_deep_findings_run", "test_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False)
+    cluster_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    root_cause: Mapped[Optional[str]] = mapped_column(Text)
+    failure_category: Mapped[Optional[FailureCategory]] = mapped_column(String(30))
+    confidence_score: Mapped[Optional[int]] = mapped_column(Integer)
+    causal_chain: Mapped[Optional[list]] = mapped_column(JSON)                    # list[{step, service, finding}]
+    evidence: Mapped[Optional[list]] = mapped_column(JSON)                        # list[{source, excerpt}]
+    affected_services: Mapped[Optional[list]] = mapped_column(JSON)               # list[str]
+    contract_violations: Mapped[Optional[list]] = mapped_column(JSON)             # list[ContractViolation dicts]
+    log_evidence: Mapped[Optional[dict]] = mapped_column(JSON)
+    recommended_actions: Mapped[Optional[list]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReleaseDecision(Base):
+    """Release gate decision produced by ReleaseRiskAgent."""
+    __tablename__ = "release_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False, unique=True)
+    recommendation: Mapped[str] = mapped_column(String(20), nullable=False)       # GO | NO_GO | CONDITIONAL_GO
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=False, default=50)  # 0-100
+    blocking_issues: Mapped[Optional[list]] = mapped_column(JSON)
+    conditions_for_go: Mapped[Optional[list]] = mapped_column(JSON)
+    reasoning: Mapped[Optional[str]] = mapped_column(Text)
+    human_override: Mapped[Optional[str]] = mapped_column(Text)                   # QA lead override reason
+    overridden_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class ContractViolation(Base):
+    """API contract violation detected by ContractAgent."""
+    __tablename__ = "contract_violations"
+    __table_args__ = (
+        Index("ix_contract_violations_run", "test_run_id"),
+        Index("ix_contract_violations_tc", "test_case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False)
+    endpoint: Mapped[Optional[str]] = mapped_column(String(500))
+    violation_type: Mapped[str] = mapped_column(String(50), nullable=False)       # missing_field|type_mismatch|schema_drift|constraint_violation
+    field_path: Mapped[Optional[str]] = mapped_column(String(500))
+    expected: Mapped[Optional[str]] = mapped_column(String(500))
+    actual: Mapped[Optional[str]] = mapped_column(String(500))
+    severity: Mapped[str] = mapped_column(String(20), default="warning")          # critical|warning|info
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class NotificationLog(Base):
     """Audit trail for every dispatched notification."""
     __tablename__ = "notification_logs"

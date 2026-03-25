@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Activity, AlertTriangle, Bot, CheckCircle, ChevronDown, ChevronRight,
-  Clock, FileText, GitBranch, RefreshCw, XCircle, Zap,
+  Clock, FileText, GitBranch, Layers, RefreshCw, Shield, Stethoscope, XCircle, Zap,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
@@ -39,6 +39,26 @@ const STAGE_META: Record<string, { label: string; icon: React.ElementType; descr
     label: 'Defect Triage',
     icon: Zap,
     description: 'Auto-create Jira tickets for high-confidence failures',
+  },
+  failure_clustering: {
+    label: 'Failure Clustering',
+    icon: Layers,
+    description: 'Semantically group failures to reduce redundant LLM calls',
+  },
+  flaky_sentinel: {
+    label: 'Flaky Sentinel',
+    icon: AlertTriangle,
+    description: 'Investigate flaky test lifecycles and quarantine candidates',
+  },
+  test_health: {
+    label: 'Test Health',
+    icon: Stethoscope,
+    description: 'Analyze test code for anti-patterns and automation defects',
+  },
+  release_risk: {
+    label: 'Release Risk',
+    icon: Shield,
+    description: 'AI go/no-go release recommendation with risk scoring',
   },
 }
 

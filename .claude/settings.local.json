@@ -14,7 +14,9 @@
       "Bash(cd:*)",
       "Bash(ls:*)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(where ruff:*)",
+      "Read(//c/Users/anand/Downloads/Projects/AI_TestDashboard/qainsight-ai/frontend/**)"
     ]
   }
 }

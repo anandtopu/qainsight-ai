@@ -76,19 +76,40 @@ qainsight-ai/
 │   │   │   ├── jira_client.py   ← Jira REST API v3 + ADF builder
 │   │   │   ├── metrics_service.py ← Dashboard KPI aggregations
 │   │   │   └── ocp_client.py    ← OpenShift pod metadata queries
-│   │   ├── tools/               ← LangChain agent tool definitions
-│   │   │   ├── fetch_stacktrace.py
+│   │   ├── agents/              ← LangGraph multi-agent pipeline
+│   │   │   ├── workflow.py      ← _build_offline_graph() + _build_deep_graph() + run_*_pipeline()
+│   │   │   ├── state.py         ← WorkflowState typed dict (shared by both pipelines)
+│   │   │   ├── base.py          ← BaseAgent (stage tracking, broadcast helpers)
+│   │   │   ├── cluster_agent.py ← stage_name="failure_clustering"; semantic grouping
+│   │   │   ├── log_intelligence_agent.py ← specialist; called by cluster/flaky agents
+│   │   │   ├── contract_agent.py         ← specialist; API schema drift per cluster
+│   │   │   ├── flaky_sentinel_agent.py   ← stage_name="flaky_sentinel"; lifecycle investigation
+│   │   │   ├── test_health_agent.py      ← stage_name="test_health"; anti-pattern scan
+│   │   │   └── release_risk_agent.py     ← stage_name="release_risk"; GO/NO_GO LLM decision
+│   │   ├── tools/               ← LangChain agent tool definitions (11 tools)
+│   │   │   ├── fetch_stacktrace.py       ← Standard pipeline tools (5)
 │   │   │   ├── fetch_rest_payload.py
 │   │   │   ├── query_splunk.py
 │   │   │   ├── check_flakiness.py
-│   │   │   └── analyze_ocp.py
+│   │   │   ├── analyze_ocp.py
+│   │   │   ├── embed_and_cluster.py      ← Deep pipeline tools (6)
+│   │   │   ├── reconstruct_trace.py
+│   │   │   ├── detect_log_anomaly.py
+│   │   │   ├── validate_api_contract.py
+│   │   │   ├── fetch_build_changes.py
+│   │   │   └── fetch_app_metrics.py
+│   │   ├── routers/
+│   │   │   ├── deep_investigation.py    ← POST /deep-investigate, GET /clusters, GET /findings
+│   │   │   └── release_readiness.py     ← GET /release-readiness, POST /override
 │   │   └── worker/
 │   │       ├── celery_app.py    ← Celery configuration + beat schedule
 │   │       └── tasks.py         ← Background task definitions
 │   ├── migrations/
 │   │   ├── env.py               ← Alembic async environment
 │   │   └── versions/
-│   │       └── 0001_initial_schema.py
+│   │       ├── 0001_initial_schema.py
+│   │       ├── 0002_*.py … 0005_*.py
+│   │       └── 0006_deep_investigation.py  ← failure_clusters, deep_findings, release_decisions, contract_violations
 │   ├── tests/
 │   │   ├── conftest.py          ← Shared fixtures
 │   │   └── test_agent.py        ← Agent unit tests (mocked tools)
@@ -99,7 +120,7 @@ qainsight-ai/
 ├── frontend/
 │   ├── src/
 │   │   ├── main.tsx             ← React entry point
-│   │   ├── App.tsx              ← Router with all lazy-loaded routes
+│   │   ├── App.tsx              ← Router with all lazy-loaded routes (incl. /deep-investigate, /release-gate)
 │   │   ├── pages/               ← One file per route
 │   │   │   ├── OverviewPage.tsx      ← Executive Dashboard
 │   │   │   ├── RunsPage.tsx          ← Jenkins build list
@@ -111,11 +132,15 @@ qainsight-ai/
 │   │   │   ├── TrendsPage.tsx        ← Period-based KPI trend charts
 │   │   │   ├── DefectsPage.tsx       ← Paginated defects + Jira links
 │   │   │   ├── ProjectsPage.tsx      ← Project management
+│   │   │   ├── AgentStatusPage.tsx   ← Live pipeline stage monitor (9 stages for deep pipeline)
+│   │   │   ├── DeepInvestigationPage.tsx ← Cluster list + finding detail panel; trigger button
+│   │   │   ├── ReleaseGatePage.tsx   ← GO/NO_GO banner, risk gauge, QA lead override form
 │   │   │   └── SettingsPage.tsx      ← Configuration overview
 │   │   ├── components/
 │   │   │   ├── ui/              ← Generic reusable components
 │   │   │   ├── charts/          ← Recharts wrappers (TrendChart, PassRateGauge…)
 │   │   │   ├── layout/          ← App shell (AppLayout, Sidebar, TopBar)
+│   │   │   │   └── Sidebar.tsx  ← AI_NAV includes Deep Analysis (Layers) + Release Gate (Shield)
 │   │   │   └── ai/              ← AI-specific (AIAnalysisPanel, LogViewer)
 │   │   ├── services/            ← Axios API client modules
 │   │   │   ├── api.ts           ← Base axios instance (VITE_API_BASE_URL)
@@ -124,10 +149,12 @@ qainsight-ai/
 │   │   │   ├── runsService.ts
 │   │   │   ├── aiService.ts
 │   │   │   ├── projectsService.ts
-│   │   │   └── searchService.ts
+│   │   │   ├── searchService.ts
+│   │   │   └── deepInvestigationService.ts  ← triggerDeep, getClusters, getFindings, getReleaseDecision, overrideRelease
 │   │   ├── hooks/               ← SWR data-fetching hooks
 │   │   │   ├── useMetrics.ts    ← useFlakyTests, useFailureCategories, …
-│   │   │   └── useRuns.ts
+│   │   │   ├── useRuns.ts
+│   │   │   └── useDeepInvestigation.ts  ← useFailureClusters, useDeepFindings, useReleaseDecision
 │   │   ├── store/
 │   │   │   └── projectStore.ts  ← Zustand: active project + project list
 │   │   └── utils/
@@ -298,3 +325,8 @@ Then restart: `docker compose restart backend worker`
 | P6 | Quality Gates | New `routers/quality_gates.py` + frontend |
 | P7 | MCP Server | `mcp/tools/`, `mcp/resources/`, `mcp/prompts/`, `mcp/server.py` |
 | P8 | Production | `k8s/`, `.github/workflows/ci.yml` |
+| P9 | Performance & scalability | Connection pools, parallel ingestion, WebSocket limits |
+| P10 | LangGraph multi-agent pipeline | `agents/workflow.py`, `agents/state.py`, `agents/base.py` |
+| P11 | Redis Streams + live reporting | `streams/`, circuit breaker, DLQ |
+| P12 | Continuous fine-tuning | `services/training/`, `worker/training_tasks.py`, model registry |
+| P13 | Deep Investigation + Release Gate | `agents/cluster_agent.py` through `release_risk_agent.py`, new tools (6), `routers/deep_investigation.py`, `routers/release_readiness.py`, `migrations/0006_deep_investigation.py`, `pages/DeepInvestigationPage.tsx`, `pages/ReleaseGatePage.tsx` |

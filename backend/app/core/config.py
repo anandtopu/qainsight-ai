@@ -160,6 +160,15 @@ class Settings(BaseSettings):
     CLASSIFIER_CONFIDENCE_THRESHOLD: int = 85         # min confidence to trust fast classifier
     CLASSIFIER_MODEL: Optional[str] = None            # None = use LLM_MODEL
 
+    # ── Deep Investigation ────────────────────────────────────
+    DEEP_INVESTIGATION_ENABLED: bool = True
+    RELEASE_PASS_RATE_THRESHOLD: float = 90.0     # minimum pass rate to consider GO
+    DEEP_CLUSTER_THRESHOLD: float = 0.75          # Jaccard similarity threshold for clustering
+    DEEP_MAX_CLUSTERS_PER_RUN: int = 20           # cap clusters to avoid overload
+    PROMETHEUS_URL: Optional[str] = None          # e.g. http://prometheus:9090
+    GITHUB_TOKEN: Optional[str] = None            # GitHub PAT for build change lookup
+    GITHUB_REPO: Optional[str] = None             # e.g. "org/repo"
+
     # ── Webhook Security ──────────────────────────────────────
     WEBHOOK_SECRET: str = "change-me-webhook-secret"
 

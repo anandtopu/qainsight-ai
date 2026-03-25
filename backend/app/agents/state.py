@@ -48,6 +48,22 @@ class WorkflowState(TypedDict):
     # ── Stage 5: Defect Triage Agent ─────────────────────────────
     triage_results: list[dict]          # [{test_case_id, ticket_key, action: created|updated|skipped}]
 
+    # ── Stage 2b: Failure Clustering (deep workflow only) ────────
+    failure_clusters: list[dict]        # [{cluster_id, label, member_test_ids, representative_error, size}]
+    cluster_map: dict[str, str]         # test_case_id -> cluster_id
+
+    # ── Stage 3 deep: Deep Root-Cause per cluster ─────────────────
+    deep_findings: Annotated[dict[str, dict], _merge_dicts]  # cluster_id -> DeepFinding dict
+
+    # ── Stage: Flaky Sentinel ─────────────────────────────────────
+    flaky_findings: list[dict]          # [{test_case_id, test_name, flaky_since_build, recommendation}]
+
+    # ── Stage: Test Health ────────────────────────────────────────
+    test_health_findings: list[dict]    # [{test_case_id, health_score, violations, recommendation}]
+
+    # ── Stage 6: Release Risk Agent ──────────────────────────────
+    release_decision: Optional[dict]    # {recommendation, risk_score, blocking_issues, reasoning}
+
     # ── Error / Progress Tracking ─────────────────────────────────
     errors: Annotated[list[str], _concat_lists]
     completed_stages: Annotated[list[str], _concat_lists]

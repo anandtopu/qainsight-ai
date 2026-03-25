@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3, Bot, Bug, FlaskConical, Gauge, GitBranch,
-  LayoutDashboard, MessageSquare, Search, Settings, ShieldCheck, TrendingUp,
+  Layers, LayoutDashboard, MessageSquare, Search, Settings, ShieldCheck, Shield, TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -17,8 +17,10 @@ const NAV = [
 ]
 
 const AI_NAV = [
-  { to: '/agents',    icon: Bot,             label: 'AI Pipeline' },
-  { to: '/chat',      icon: MessageSquare,   label: 'Chat'        },
+  { to: '/agents',           icon: Bot,           label: 'AI Pipeline'    },
+  { to: '/deep-investigate', icon: Layers,         label: 'Deep Analysis'  },
+  { to: '/release-gate',     icon: Shield,         label: 'Release Gate'   },
+  { to: '/chat',             icon: MessageSquare,  label: 'Chat'           },
 ]
 
 export default function Sidebar() {

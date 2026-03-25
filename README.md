@@ -21,6 +21,8 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 |--------|-----------|
 | **Ingestion** | TestNG, JUnit, Allure, Cucumber, pytest, Robot Framework, JUnit XML (universal) |
 | **AI Triage** | LangChain ReAct agent · 5 investigation tools · Ollama/OpenAI/Gemini |
+| **Deep Investigation** | Multi-agent network (LangGraph) — semantic clustering, distributed trace reconstruction, log anomaly detection, API contract validation, flaky lifecycle, test health scoring |
+| **Release Gate** | LLM-backed GO / NO_GO / CONDITIONAL_GO recommendation · risk score · QA Lead override with audit trail |
 | **Offline AI** | Fully air-gapped with Ollama (qwen2.5, llama3, mistral) |
 | **Continuous Learning** | Self-improving models — fine-tuned on your own verified failure data, no external labelling required |
 | **Live Reporting** | Real-time WebSocket dashboard during test execution · Redis Streams event pipeline |
@@ -31,17 +33,28 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 | **Security** | JWT-based authentication with role-based access control (RBAC) |
 | **MCP Server** | 20 tools · 10 resources · 6 prompt workflows for AI assistant integration |
 | **Search** | Full-text + semantic RAG search across all test history |
-| **Integrations** | Jira, Splunk, OpenShift API, Slack, Teams, GitHub Issues |
+| **Integrations** | Jira, Splunk, Prometheus, GitHub, OpenShift API, Slack, Teams |
 
 ## Architecture
 
 ```
 [Tests/CI Upload] -> [FastAPI Backend/API]
                           |
-                          +-> [PostgreSQL]   structured results, AI analyses, feedback, model versions
-                          +-> [MongoDB]      raw logs, Allure JSON, audit trails, run summaries
+                          +-> [PostgreSQL]   structured results, AI analyses, feedback, model versions,
+                          |                  failure_clusters, deep_findings, release_decisions
+                          +-> [MongoDB]      raw logs, Allure JSON, audit trails, rest_api_payloads
                           +-> [MinIO/S3]     test artifacts, training JSONL exports
                           +-> [Redis]        broker, live run state, model registry, circuit breaker
+                          |
+                          +-> [Standard Pipeline (LangGraph)]
+                          |     ingestion → anomaly_detection → root_cause_analysis
+                          |     → summary → triage → END
+                          |
+                          +-> [Deep Investigation Pipeline (LangGraph)]
+                          |     ingestion → (parallel) anomaly_detection
+                          |                          + root_cause_analysis
+                          |                          + failure_clustering (ClusterAgent)
+                          |     → summary → triage → flaky_sentinel → test_health → release_risk
                           |
                           +-> [AI Agent (LangChain ReAct)] -> [Ollama or Cloud LLM]
                           +-> [Fast Classifier]             -> [Fine-tuned model (registry)]
@@ -103,6 +116,15 @@ graph TD
         CloudLLM[Cloud API: OpenAI / Gemini]
         RAG[Semantic Search / Embeddings]
         CircuitBreaker[LLM Circuit Breaker]
+    end
+
+    subgraph Deep_Investigation_Layer [Deep Investigation Agent Network]
+        ClusterAgent[ClusterAgent: semantic failure clustering]
+        LogIntel[LogIntelligenceAgent: trace + anomaly]
+        ContractAgent[ContractAgent: API schema drift]
+        FlakySentinel[FlakySentinelAgent: flaky lifecycle]
+        TestHealth[TestHealthAgent: automation code quality]
+        ReleaseRisk[ReleaseRiskAgent: GO / NO_GO / CONDITIONAL_GO]
     end
 
     subgraph Continuous_Learning [Continuous Fine-Tuning]
@@ -183,16 +205,28 @@ graph TD
     Classifier -->|Fast path hit| Factory
     Classifier -->|Low confidence fallback| Agent
     FastAPI -->|Trigger AI Triage| Agent
+    FastAPI -->|Trigger Deep Investigation| ClusterAgent
     Worker -->|Tier 3 Background Triage| Agent
     Worker -->|Tier 2 Similarity Matching| RAG
+    Worker -->|Deep pipeline execution| ClusterAgent
     RAG <-->|Query Vectors| Chroma
     Agent -->|Route Provider| Factory
     Classifier -->|Route Provider| Factory
+    ClusterAgent -->|Route Provider| Factory
+    FlakySentinel -->|Route Provider| Factory
+    TestHealth -->|Route Provider| Factory
+    ReleaseRisk -->|Route Provider| Factory
     Factory -->|Check active fine-tuned model| Registry
     Factory -->|Air-Gapped Inference| Ollama
     Factory -->|Cloud Inference| CloudLLM
     Agent -->|Guard LLM calls| CircuitBreaker
     Worker -->|Guard LLM calls| CircuitBreaker
+    ClusterAgent --> LogIntel
+    ClusterAgent --> ContractAgent
+    ClusterAgent --> FlakySentinel
+    FlakySentinel --> TestHealth
+    TestHealth --> ReleaseRisk
+    ReleaseRisk -->|Persist decision| PG
 
     %% External Tool Invocations
     Agent -->|Auto-Create Defects| Jira
@@ -311,28 +345,57 @@ qainsight-ai/
 │   │   │       ├── finetuner.py         # Provider-specific job submission
 │   │   │       └── evaluator.py         # Holdout A/B evaluation gate
 │   │   ├── agents/             # LangGraph multi-agent workflow
+│   │   │   ├── workflow.py              # Standard + deep LangGraph pipelines
+│   │   │   ├── state.py                 # WorkflowState (shared typed dict)
+│   │   │   ├── base.py                  # BaseAgent (stage tracking + broadcast)
+│   │   │   ├── cluster_agent.py         # Semantic failure clustering (Stage 2b)
+│   │   │   ├── log_intelligence_agent.py # Specialist: trace + anomaly detection
+│   │   │   ├── contract_agent.py        # Specialist: API schema drift validation
+│   │   │   ├── flaky_sentinel_agent.py  # Flaky lifecycle investigation (Stage 6)
+│   │   │   ├── test_health_agent.py     # Automation code quality scan (Stage 7)
+│   │   │   └── release_risk_agent.py    # GO/NO_GO recommendation (Stage 8)
 │   │   ├── streams/            # Redis Streams infrastructure
 │   │   │   ├── __init__.py              # Stream/group/key constants
 │   │   │   ├── producer.py              # XADD publishers
 │   │   │   ├── live_consumer.py         # Asyncio stream consumer
 │   │   │   ├── live_run_state.py        # Redis Hash live run state
 │   │   │   └── circuit_breaker.py       # CLOSED/OPEN/HALF_OPEN LLM guard
-│   │   ├── tools/              # LangChain agent tools (5 tools)
+│   │   ├── tools/              # LangChain agent tools (11 tools)
+│   │   │   ├── fetch_stacktrace.py      # Retrieve stack traces from MongoDB
+│   │   │   ├── fetch_rest_payload.py    # GET request/response payloads
+│   │   │   ├── query_splunk.py          # Splunk log search
+│   │   │   ├── check_flakiness.py       # Historical flakiness rate from PostgreSQL
+│   │   │   ├── analyze_ocp.py           # OpenShift pod events
+│   │   │   ├── embed_and_cluster.py     # ChromaDB + Jaccard semantic clustering
+│   │   │   ├── reconstruct_trace.py     # Multi-service distributed trace reconstruction
+│   │   │   ├── detect_log_anomaly.py    # Error rate anomaly vs 7-day baseline
+│   │   │   ├── validate_api_contract.py # OpenAPI schema drift from MongoDB payloads
+│   │   │   ├── fetch_build_changes.py   # GitHub API commits between builds
+│   │   │   └── fetch_app_metrics.py     # Prometheus metrics during test window
+│   │   ├── routers/            # API route handlers
+│   │   │   ├── deep_investigation.py    # POST /deep-investigate, GET /clusters, GET /findings
+│   │   │   └── release_readiness.py     # GET /release-readiness, POST /override
 │   │   ├── models/             # SQLAlchemy ORM + Pydantic schemas
+│   │   │   └── postgres.py              # FailureCluster, DeepFinding, ReleaseDecision, ContractViolation
 │   │   ├── db/                 # Database connections
 │   │   └── worker/             # Celery background tasks
 │   │       ├── tasks.py                 # Ingestion + analysis + pipeline tasks
 │   │       └── training_tasks.py        # Export · trigger-check · fine-tune pipeline
-│   ├── migrations/             # Alembic migrations (0001–0005)
+│   ├── migrations/             # Alembic migrations (0001–0006)
 │   ├── tests/                  # pytest test suite
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/                   # React + Vite SPA
 │   ├── src/
-│   │   ├── pages/              # Route-level page components (incl. LoginPage)
+│   │   ├── pages/              # Route-level page components
+│   │   │   ├── DeepInvestigationPage.tsx  # Cluster list + finding detail panel
+│   │   │   ├── ReleaseGatePage.tsx        # GO/NO_GO banner, risk gauge, override form
+│   │   │   └── AgentStatusPage.tsx        # Live pipeline stage monitor (extended)
 │   │   ├── components/         # Reusable UI components & ProtectedRoute
-│   │   ├── services/           # API client layer with auth interceptors
-│   │   ├── hooks/              # Custom React hooks (SWR)
+│   │   ├── services/
+│   │   │   └── deepInvestigationService.ts  # Deep investigate + release readiness API calls
+│   │   ├── hooks/
+│   │   │   └── useDeepInvestigation.ts      # useFailureClusters, useDeepFindings, useReleaseDecision
 │   │   ├── store/              # Zustand state management (authStore)
 │   │   └── utils/              # Helpers and formatters
 │   ├── package.json
@@ -438,6 +501,74 @@ You: "Which tests are most flaky this month?"
 You: "Generate the weekly quality digest for project-alpha"
 ```
 
+## Deep Investigation Agent Network
+
+For complex test runs the standard single-pass ReAct pipeline is augmented by an on-demand **Deep Investigation** mode. Triggering `POST /api/v1/deep-investigate/{run_id}` queues a 9-stage LangGraph pipeline that runs O(k) cluster investigations rather than O(n) individual analyses (k << n).
+
+### Pipeline Graph
+
+```
+ingestion → (parallel) anomaly_detection
+                      + root_cause_analysis
+                      + failure_clustering (ClusterAgent)
+          → summary → triage → flaky_sentinel → test_health → release_risk → END
+```
+
+### Agents
+
+| Agent | Stage | Purpose |
+|-------|-------|---------|
+| `ClusterAgent` | `failure_clustering` | Groups semantically similar failures via ChromaDB embeddings + Jaccard fallback; produces `failure_clusters` + `cluster_map` |
+| `LogIntelligenceAgent` | specialist (called by others) | Reconstructs Splunk distributed traces; detects log-rate anomalies vs 7-day baseline |
+| `ContractAgent` | specialist (called by others) | Validates REST API response schemas against historical MongoDB baselines; flags `schema_drift` and `missing_field` violations |
+| `FlakySentinelAgent` | `flaky_sentinel` | Full lifecycle investigation — finds flakiness onset build, correlates with GitHub commits, recommends QUARANTINE / INVESTIGATE / MONITOR |
+| `TestHealthAgent` | `test_health` | Scans automation source code for anti-patterns (empty catch, hardcoded sleeps, brittle selectors); computes health score 0–100 |
+| `ReleaseRiskAgent` | `release_risk` | LLM-backed GO / NO_GO / CONDITIONAL_GO with heuristic fast-path; persists to `release_decisions` table; QA Lead can override |
+
+### New Tools (6)
+
+| Tool | What it does |
+|------|-------------|
+| `embed_and_cluster` | ChromaDB + cosine similarity clustering with Jaccard fallback |
+| `reconstruct_distributed_trace` | Multi-service Splunk log correlation using correlation IDs |
+| `detect_log_anomaly` | ERROR/WARN rate vs 7-day daily-average baseline |
+| `validate_api_contract` | Schema drift detection from MongoDB REST payloads |
+| `fetch_build_changes` | GitHub API — commits between last stable and first flaky build |
+| `fetch_app_metrics` | Prometheus range query — error rate, CPU, memory, P99 latency |
+
+### Database Tables (migration 0006)
+
+| Table | Purpose |
+|-------|---------|
+| `failure_clusters` | Cluster label, member_test_ids (JSONB), cohesion score |
+| `deep_findings` | Per-cluster root cause, causal chain (JSONB), contract violations |
+| `release_decisions` | GO/NO_GO recommendation, risk score, blocking issues, human override |
+| `contract_violations` | Endpoint, violation type, field path, expected vs actual, severity |
+
+### API Endpoints
+
+| Endpoint | Method | Role |
+|----------|--------|------|
+| `/api/v1/deep-investigate/{run_id}` | POST | Trigger deep pipeline (queues Celery task) |
+| `/api/v1/deep-investigate/{run_id}/clusters` | GET | Return failure clusters |
+| `/api/v1/deep-investigate/{run_id}/findings` | GET | Return deep findings per cluster |
+| `/api/v1/release-readiness/{run_id}` | GET | Fetch cached release decision |
+| `/api/v1/release-readiness/{run_id}/override` | POST | QA Lead override (role-protected) |
+
+### Configuration
+
+```bash
+DEEP_INVESTIGATION_ENABLED=true      # Enable/disable the deep pipeline
+RELEASE_PASS_RATE_THRESHOLD=90.0     # % below which NO_GO fast-path triggers
+DEEP_CLUSTER_THRESHOLD=0.75          # Jaccard similarity threshold for clustering
+DEEP_MAX_CLUSTERS_PER_RUN=20         # Cap on clusters per deep investigation
+PROMETHEUS_URL=http://prometheus:9090 # Optional — enables fetch_app_metrics tool
+GITHUB_TOKEN=ghp_...                  # Optional — enables fetch_build_changes tool
+GITHUB_REPO=yourorg/yourrepo         # Required when GITHUB_TOKEN is set
+```
+
+---
+
 ## Iterative Development Plan
 
 | Phase | Focus | Weeks |
@@ -454,6 +585,7 @@ You: "Generate the weekly quality digest for project-alpha"
 | **Phase 10** | Context engineering + LangGraph multi-agent pipeline | 17 |
 | **Phase 11** | Redis Streams event pipeline · live test reporting · circuit breaker · DLQ | 18 |
 | **Phase 12** | Continuous fine-tuning pipeline (3 tracks, Jira webhook, model registry) | 19–20 |
+| **Phase 13** | Deep Investigation Agent Network (semantic clustering, release gate, flaky lifecycle, API contract, test health) | 21–22 |
 
 ## Continuous Fine-Tuning
 
@@ -667,6 +799,15 @@ Key variables:
 - `FINETUNE_EXPORT_BUCKET` — MinIO bucket for training JSONL files (default: `training-data`)
 - `CLASSIFIER_CONFIDENCE_THRESHOLD` — fast-path classifier confidence floor (default: 85)
 - `CLASSIFIER_MODEL` — override model for fast classifier (default: same as `LLM_MODEL`)
+
+**Deep Investigation**
+- `DEEP_INVESTIGATION_ENABLED` — `true` (default) to enable the deep LangGraph pipeline
+- `RELEASE_PASS_RATE_THRESHOLD` — pass rate % below which NO_GO fast-path triggers without calling the LLM (default: 90.0)
+- `DEEP_CLUSTER_THRESHOLD` — Jaccard similarity threshold for failure grouping (default: 0.75)
+- `DEEP_MAX_CLUSTERS_PER_RUN` — maximum failure clusters investigated per run (default: 20)
+- `PROMETHEUS_URL` — Prometheus base URL (optional); enables `fetch_app_metrics` tool
+- `GITHUB_TOKEN` — GitHub personal access token (optional); enables `fetch_build_changes` tool
+- `GITHUB_REPO` — `owner/repo` slug (required when `GITHUB_TOKEN` is set)
 
 **Authentication**
 - `JWT_SECRET_KEY` — randomly generated secret for encoding authentication tokens

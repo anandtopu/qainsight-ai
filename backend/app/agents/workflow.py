@@ -17,9 +17,13 @@ from langgraph.graph import END, StateGraph  # type: ignore
 
 from app.agents.analysis_agent import AnalysisAgent
 from app.agents.anomaly_agent import AnomalyDetectionAgent
+from app.agents.cluster_agent import ClusterAgent
+from app.agents.flaky_sentinel_agent import FlakySentinelAgent
 from app.agents.ingestion_agent import IngestionAgent
+from app.agents.release_risk_agent import ReleaseRiskAgent
 from app.agents.state import WorkflowState
 from app.agents.summary_agent import SummaryAgent
+from app.agents.test_health_agent import TestHealthAgent
 from app.agents.triage_agent import DefectTriageAgent
 from app.core.config import settings
 from app.db.postgres import AsyncSessionLocal
@@ -28,11 +32,15 @@ from app.models.postgres import AgentPipelineRun, AgentStageResult
 logger = logging.getLogger("agents.workflow")
 
 # Singleton agent instances (stateless — safe to share across concurrent pipeline runs)
-_ingestion = IngestionAgent()
-_anomaly   = AnomalyDetectionAgent()
-_analysis  = AnalysisAgent()
-_summary   = SummaryAgent()
-_triage    = DefectTriageAgent()
+_ingestion     = IngestionAgent()
+_anomaly       = AnomalyDetectionAgent()
+_analysis      = AnalysisAgent()
+_summary       = SummaryAgent()
+_triage        = DefectTriageAgent()
+_cluster       = ClusterAgent()
+_flaky_sentinel = FlakySentinelAgent()
+_test_health   = TestHealthAgent()
+_release_risk  = ReleaseRiskAgent()
 
 
 # ── LangGraph node functions ──────────────────────────────────────────────────
@@ -55,6 +63,22 @@ async def summary_node(state: WorkflowState) -> dict:
 
 async def triage_node(state: WorkflowState) -> dict:
     return await _triage.run(state)
+
+
+async def cluster_node(state: WorkflowState) -> dict:
+    return await _cluster.run(state)
+
+
+async def flaky_sentinel_node(state: WorkflowState) -> dict:
+    return await _flaky_sentinel.run(state)
+
+
+async def test_health_node(state: WorkflowState) -> dict:
+    return await _test_health.run(state)
+
+
+async def release_risk_node(state: WorkflowState) -> dict:
+    return await _release_risk.run(state)
 
 
 # ── Routing functions (conditional edges) ────────────────────────────────────
@@ -159,6 +183,69 @@ def _build_offline_graph() -> StateGraph:
     return graph
 
 
+def _build_deep_graph() -> StateGraph:
+    """
+    Extended deep-investigation pipeline with clustering, flaky sentinel, test health, and release risk.
+
+    Graph topology:
+                                    ┌─ anomaly_detection ──────────────────────────┐
+      ingestion ─(conditional)──────┤                                               ├─ summary ─(conditional)─ triage ─ flaky_sentinel ─ test_health ─ release_risk ─ END
+                                    └─ root_cause_analysis ─┐                       │
+                                    └─ failure_clustering   ─┘ (fan-in to summary)  │
+                  (no failures) └─────────────────────────────────────────────────── summary ─ release_risk ─ END
+    """
+    graph = StateGraph(WorkflowState)
+
+    graph.add_node("ingestion",            ingestion_node)
+    graph.add_node("anomaly_detection",    anomaly_node)
+    graph.add_node("failure_clustering",   cluster_node)
+    graph.add_node("root_cause_analysis",  analysis_node)
+    graph.add_node("summary",              summary_node)
+    graph.add_node("triage",               triage_node)
+    graph.add_node("flaky_sentinel",       flaky_sentinel_node)
+    graph.add_node("test_health",          test_health_node)
+    graph.add_node("release_risk",         release_risk_node)
+
+    graph.set_entry_point("ingestion")
+
+    # Conditional routing after ingestion
+    graph.add_conditional_edges(
+        "ingestion",
+        _route_after_ingestion,
+        {
+            "anomaly_detection": "anomaly_detection",
+            "summary":           "summary",
+        },
+    )
+
+    # Parallel fan-out from ingestion when failures exist
+    graph.add_edge("ingestion", "root_cause_analysis")
+    graph.add_edge("ingestion", "failure_clustering")
+
+    # Fan-in: all three parallel branches → summary
+    graph.add_edge("anomaly_detection",   "summary")
+    graph.add_edge("root_cause_analysis", "summary")
+    graph.add_edge("failure_clustering",  "summary")
+
+    # After summary: triage if triageable, else go straight to specialist stages
+    graph.add_conditional_edges(
+        "summary",
+        _route_after_summary,
+        {
+            "triage": "triage",
+            END:      "release_risk",
+        },
+    )
+
+    # Specialist stages run sequentially after triage
+    graph.add_edge("triage",        "flaky_sentinel")
+    graph.add_edge("flaky_sentinel", "test_health")
+    graph.add_edge("test_health",    "release_risk")
+    graph.add_edge("release_risk",   END)
+
+    return graph
+
+
 def _build_live_graph() -> StateGraph:
     """
     Lightweight post-live-run graph: skip anomaly detection and full analysis,
@@ -180,6 +267,7 @@ def _build_live_graph() -> StateGraph:
 # Compile once at module load (compilation is expensive; instances are thread-safe)
 _offline_app = _build_offline_graph().compile()
 _live_app    = _build_live_graph().compile()
+_deep_app    = _build_deep_graph().compile()
 
 
 # ── Public entry points ───────────────────────────────────────────────────────
@@ -220,6 +308,13 @@ async def run_offline_pipeline(
         "executive_summary":  None,
         "summary_markdown":   None,
         "triage_results":     [],
+        # Deep pipeline state (empty for offline/live pipelines)
+        "failure_clusters":   [],
+        "cluster_map":        {},
+        "deep_findings":      {},
+        "flaky_findings":     [],
+        "test_health_findings": [],
+        "release_decision":   None,
         "errors":             [],
         "completed_stages":   [],
         "current_stage":      "ingestion",
@@ -248,16 +343,84 @@ async def run_offline_pipeline(
         raise
 
 
+async def run_deep_pipeline(
+    test_run_id: str,
+    project_id: str,
+    build_number: str,
+) -> dict:
+    """
+    Execute the deep investigation pipeline with clustering, flaky sentinel,
+    test health analysis, and release risk assessment.
+    """
+    pipeline_run_id = str(uuid.uuid4())
+    await _create_pipeline_run(pipeline_run_id, test_run_id, "deep")
+
+    initial_state: WorkflowState = {
+        "pipeline_run_id":    pipeline_run_id,
+        "test_run_id":        test_run_id,
+        "project_id":         project_id,
+        "build_number":       build_number,
+        "workflow_type":      "deep",
+        "test_run_data":      None,
+        "failed_test_ids":    [],
+        "total_tests":        0,
+        "pass_rate":          0.0,
+        "ingestion_enriched": False,
+        "anomalies":          [],
+        "is_regression":      False,
+        "regression_tests":   [],
+        "anomaly_summary":    None,
+        "analyses":           {},
+        "executive_summary":  None,
+        "summary_markdown":   None,
+        "triage_results":     [],
+        "failure_clusters":   [],
+        "cluster_map":        {},
+        "deep_findings":      {},
+        "flaky_findings":     [],
+        "test_health_findings": [],
+        "release_decision":   None,
+        "errors":             [],
+        "completed_stages":   [],
+        "current_stage":      "ingestion",
+    }
+
+    try:
+        logger.info(
+            "Starting deep pipeline %s for run %s (build=%s)",
+            pipeline_run_id, test_run_id, build_number,
+        )
+        final_state = await _deep_app.ainvoke(initial_state)
+        await _mark_pipeline_done(pipeline_run_id, success=True)
+        logger.info(
+            "Deep pipeline %s complete. stages=%s errors=%d",
+            pipeline_run_id,
+            final_state.get("completed_stages"),
+            len(final_state.get("errors", [])),
+        )
+        return final_state
+    except Exception as exc:
+        error_msg = f"Deep pipeline execution error: {exc}"
+        logger.error(error_msg, exc_info=True)
+        await _mark_pipeline_done(pipeline_run_id, success=False, error=error_msg)
+        raise
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 _PIPELINE_STAGES = [
     "ingestion", "anomaly_detection", "root_cause_analysis", "summary", "triage",
+]
+_DEEP_PIPELINE_STAGES = [
+    "ingestion", "anomaly_detection", "failure_clustering", "root_cause_analysis",
+    "summary", "triage", "flaky_sentinel", "test_health", "release_risk",
 ]
 
 
 async def _create_pipeline_run(
     pipeline_run_id: str, test_run_id: str, workflow_type: str
 ) -> None:
+    stages = _DEEP_PIPELINE_STAGES if workflow_type == "deep" else _PIPELINE_STAGES
     async with AsyncSessionLocal() as db:
         db.add(AgentPipelineRun(
             id=pipeline_run_id,
@@ -266,7 +429,7 @@ async def _create_pipeline_run(
             status="running",
             started_at=datetime.now(timezone.utc),
         ))
-        for stage in _PIPELINE_STAGES:
+        for stage in stages:
             db.add(AgentStageResult(
                 pipeline_run_id=pipeline_run_id,
                 stage_name=stage,
