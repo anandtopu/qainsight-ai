@@ -43,3 +43,7 @@ k8s/**/secret-values.yaml
 test-results.xml
 allure-results/
 allure-report/
+
+# Claude Code — keep local, never push to remote
+CLAUDE.md
+.claude/

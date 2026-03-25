@@ -2,7 +2,6 @@
 QA Insight AI — FastAPI Application Entry Point
 """
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 
 import structlog  # type: ignore
