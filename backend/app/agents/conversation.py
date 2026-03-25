@@ -8,19 +8,18 @@ Answers natural-language questions about test results using:
 
 The LLM synthesises retrieved context into a clear answer with source references.
 """
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.mongo import Collections, get_mongo_db
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import (
-    AIAnalysis, ChatMessage, ChatSession, Project, TestCase, TestRun,
+    AIAnalysis, ChatMessage, ChatSession, TestCase, TestRun,
 )
 from app.services.llm_factory import get_llm
 

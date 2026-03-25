@@ -9,7 +9,8 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useActiveLiveRuns, usePipelineStages, usePipelines, useRunSummary } from '@/hooks/useAgentRuns'
-import agentService, { AgentPipelineRun, AgentStageResult } from '@/services/agentService'
+import agentService from '@/services/agentService'
+import type { AgentPipelineRun, AgentStageResult } from '@/services/agentService'
 
 // ── Stage metadata ─────────────────────────────────────────────
 
@@ -216,7 +217,7 @@ export default function AgentStatusPage() {
   const { data: liveRuns = [] } = useActiveLiveRuns()
   const { data: summary } = useRunSummary(
     showSummary && selectedPipeline
-      ? pipelines.find(p => p.id === selectedPipeline)?.test_run_id ?? null
+      ? pipelines.find((p: AgentPipelineRun) => p.id === selectedPipeline)?.test_run_id ?? null
       : null,
   )
 
@@ -243,7 +244,7 @@ export default function AgentStatusPage() {
             Live Executions
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {liveRuns.map(run => (
+            {liveRuns.map((run) => (
               <LiveRunCard key={run.run_id} run={run} />
             ))}
           </div>
@@ -261,7 +262,7 @@ export default function AgentStatusPage() {
           ) : pipelines.length === 0 ? (
             <p className="text-sm text-slate-500">No pipelines yet. Upload a test report to trigger one.</p>
           ) : (
-            pipelines.map(p => (
+            pipelines.map((p: AgentPipelineRun) => (
               <PipelineCard
                 key={p.id}
                 pipeline={p}
@@ -298,7 +299,7 @@ export default function AgentStatusPage() {
               </div>
 
               <div className="space-y-2">
-                {stages.map(stage => (
+                {stages.map((stage: AgentStageResult) => (
                   <StageCard key={stage.stage_name} stage={stage} />
                 ))}
               </div>

@@ -8,7 +8,8 @@ import json
 import logging
 from typing import Set
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from app.core.deps import verify_webhook_secret
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +151,6 @@ async def notify_ai_ready(project_id: str, test_id: str, confidence: int, catego
 
 # ── Live execution event ingestion (HTTP) ──────────────────────────────────
 # Called by test runners (e.g. pytest plugin, Allure listener) during execution
-
-from fastapi import Body, Depends, HTTPException
-from app.core.deps import verify_webhook_secret
 
 
 @router.post("/events/{run_id}", dependencies=[Depends(verify_webhook_secret)], status_code=202)

@@ -5,7 +5,6 @@ Validates that the test run data is fully ingested, extracts the list of
 failed/broken tests, and enriches the workflow state with run metadata.
 """
 import logging
-from typing import Optional
 
 from sqlalchemy import select
 

@@ -7,7 +7,8 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useChat, useChatSessions } from '@/hooks/useChat'
-import chatService, { ChatSession } from '@/services/chatService'
+import chatService from '@/services/chatService'
+import type { ChatSession } from '@/services/chatService'
 import { useProjectStore } from '@/store/projectStore'
 
 // ── Session sidebar item ───────────────────────────────────────
@@ -117,7 +118,7 @@ const STARTER_PROMPTS = [
 // ── Main page ──────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const { selectedProject } = useProjectStore()
+  const { activeProject } = useProjectStore()
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -125,7 +126,7 @@ export default function ChatPage() {
   const { data: sessions = [], mutate: reloadSessions } = useChatSessions()
   const { messages, isSending, sendMessage, error } = useChat(
     activeSessionId,
-    selectedProject?.id,
+    activeProject?.id,
   )
 
   // Auto-scroll to latest message
@@ -136,7 +137,7 @@ export default function ChatPage() {
   const handleNewSession = async () => {
     try {
       const res = await chatService.createSession({
-        project_id: selectedProject?.id,
+        project_id: activeProject?.id,
         title: 'New conversation',
       })
       await reloadSessions()
@@ -162,7 +163,7 @@ export default function ChatPage() {
     if (!activeSessionId) {
       // Auto-create session on first message
       try {
-        const res = await chatService.createSession({ project_id: selectedProject?.id })
+        const res = await chatService.createSession({ project_id: activeProject?.id })
         await reloadSessions()
         setActiveSessionId(res.data.id)
         // Message will be sent after state update — user needs to click again
@@ -182,7 +183,7 @@ export default function ChatPage() {
   const handleStarterPrompt = async (prompt: string) => {
     if (!activeSessionId) {
       try {
-        const res = await chatService.createSession({ project_id: selectedProject?.id })
+        const res = await chatService.createSession({ project_id: activeProject?.id })
         await reloadSessions()
         setActiveSessionId(res.data.id)
         setInput(prompt)
@@ -210,7 +211,7 @@ export default function ChatPage() {
           {sessions.length === 0 ? (
             <p className="text-xs text-slate-500 text-center mt-4">No conversations yet</p>
           ) : (
-            sessions.map(s => (
+            sessions.map((s: ChatSession) => (
               <SessionItem
                 key={s.id}
                 session={s}
@@ -224,7 +225,7 @@ export default function ChatPage() {
 
         <div className="text-xs text-slate-600 p-2 border-t border-slate-800">
           <p className="font-medium text-slate-500 mb-1">Context</p>
-          <p>{selectedProject?.name || 'All projects'}</p>
+          <p>{activeProject?.name || 'All projects'}</p>
         </div>
       </aside>
 

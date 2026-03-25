@@ -5,7 +5,6 @@ Provides CRUD for chat sessions and a message endpoint that invokes
 the ConversationAgent to answer questions about test results.
 """
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select

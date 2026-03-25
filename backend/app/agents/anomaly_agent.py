@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 
 from app.agents.base import BaseAgent
 from app.db.postgres import AsyncSessionLocal
-from app.models.postgres import TestCase, TestCaseHistory, TestRun, TestStatus
+from app.models.postgres import TestCase, TestCaseHistory, TestRun
 from app.services.llm_factory import get_llm
 
 logger = logging.getLogger("agents.anomaly")
@@ -234,8 +234,6 @@ class AnomalyDetectionAgent(BaseAgent):
             failed_rows = failed.all()
             if not failed_rows:
                 return []
-
-            fingerprints = [r.test_fingerprint for r in failed_rows]
 
             # Check history for flaky pattern
             flaky_ids = []

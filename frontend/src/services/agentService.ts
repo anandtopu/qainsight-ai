@@ -1,4 +1,4 @@
-import api from './api'
+import { api } from './api'
 
 export type PipelineStatus = 'pending' | 'running' | 'completed' | 'failed' | 'partial'
 export type StageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'

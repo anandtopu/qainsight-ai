@@ -2,7 +2,6 @@
 LangGraph workflow state shared across all pipeline agents.
 Each agent reads from and writes to this state as it moves through stages.
 """
-import operator
 from typing import Annotated, Optional
 from typing_extensions import TypedDict
 

@@ -9,14 +9,13 @@ For each analysed failure with confidence >= threshold:
 Returns a list of triage actions taken.
 """
 import logging
-from datetime import datetime, timezone
 
 from sqlalchemy import select
 
 from app.agents.base import BaseAgent
 from app.core.config import settings
 from app.db.postgres import AsyncSessionLocal
-from app.models.postgres import AIAnalysis, Defect, TestCase
+from app.models.postgres import Defect, TestCase
 from app.services.jira_client import create_jira_issue
 
 logger = logging.getLogger("agents.triage")

@@ -11,8 +11,6 @@ so the single-test analysis path is unchanged.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
-
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 

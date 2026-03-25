@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import useSWR from 'swr'
 import chatService, { ChatMessage, ChatSession } from '@/services/chatService'
 
 export function useChatSessions() {
-  return useSWR(
+  return useSWR<ChatSession[]>(
     '/chat/sessions',
-    () => chatService.listSessions().then(r => r.data),
+    () => chatService.listSessions().then((r) => r.data),
     { revalidateOnFocus: false },
   )
 }
 
 export function useChatMessages(sessionId: string | null) {
-  return useSWR(
+  return useSWR<ChatMessage[]>(
     sessionId ? `/chat/sessions/${sessionId}/messages` : null,
-    () => chatService.getMessages(sessionId!).then(r => r.data),
+    () => chatService.getMessages(sessionId!).then((r) => r.data),
     { revalidateOnFocus: false },
   )
 }
@@ -31,13 +31,12 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const pendingRef = useRef<string | null>(null)
 
   // Merge fetched + optimistic (deduplicate by id)
-  const fetchedIds = new Set(fetchedMessages.map(m => m.id))
+  const fetchedIds = new Set(fetchedMessages.map((m: ChatMessage) => m.id))
   const merged = [
     ...fetchedMessages,
-    ...optimisticMessages.filter(m => !fetchedIds.has(m.id)),
+    ...optimisticMessages.filter((m: ChatMessage) => !fetchedIds.has(m.id)),
   ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const sendMessage = useCallback(
@@ -61,22 +60,22 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
         created_at: new Date().toISOString(),
       }
 
-      setOptimisticMessages(prev => [...prev, tempUserMsg, tempAssistantMsg])
+      setOptimisticMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg])
       setIsSending(true)
       setError(null)
 
       try {
-        const res = await chatService.sendMessage(sessionId, text, projectId)
-        // Replace temp assistant with real reply
-        setOptimisticMessages(prev =>
-          prev.filter(m => m.id !== tempAssistantMsg.id && m.id !== tempUserMsg.id),
+        await chatService.sendMessage(sessionId, text, projectId)
+        setOptimisticMessages((prev) =>
+          prev.filter((m) => m.id !== tempAssistantMsg.id && m.id !== tempUserMsg.id),
         )
         await mutate()
-      } catch (err: any) {
-        setOptimisticMessages(prev =>
-          prev.filter(m => m.id !== tempAssistantMsg.id),
+      } catch (err: unknown) {
+        setOptimisticMessages((prev) =>
+          prev.filter((m) => m.id !== tempAssistantMsg.id),
         )
-        setError(err?.response?.data?.detail ?? 'Failed to send message')
+        const axiosErr = err as { response?: { data?: { detail?: string } } }
+        setError(axiosErr?.response?.data?.detail ?? 'Failed to send message')
       } finally {
         setIsSending(false)
       }
