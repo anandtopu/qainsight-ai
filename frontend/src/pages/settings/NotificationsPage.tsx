@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, Mail, MessageSquare, Users, CheckCircle, XCircle, Send, Trash2, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bell, Mail, MessageSquare, Users, CheckCircle, XCircle, Send, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -156,8 +156,9 @@ function ChannelCard({
     try {
       await notificationService.sendTest(channel, preference?.id)
       toast.success(`Test ${meta.label} notification sent!`)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? `Test notification failed`)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string } } }
+      toast.error(axiosErr?.response?.data?.detail ?? `Test notification failed`)
     } finally {
       setTesting(false)
     }

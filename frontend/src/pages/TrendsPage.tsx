@@ -6,6 +6,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useTrendData } from '@/hooks/useMetrics'
 import { useProjectStore } from '@/store/projectStore'
+import type { TrendPoint } from '@/services/metricsService'
 import { clsx } from 'clsx'
 
 const PERIODS = [
@@ -32,12 +33,12 @@ export default function TrendsPage() {
 
   const trendData = trends?.data ?? []
 
-  const totalPassed  = trendData.reduce((s: number, d: any) => s + d.passed,  0)
-  const totalFailed  = trendData.reduce((s: number, d: any) => s + d.failed,  0)
-  const totalSkipped = trendData.reduce((s: number, d: any) => s + d.skipped, 0)
-  const totalBroken  = trendData.reduce((s: number, d: any) => s + d.broken,  0)
+  const totalPassed  = trendData.reduce((s: number, d: TrendPoint) => s + d.passed,  0)
+  const totalFailed  = trendData.reduce((s: number, d: TrendPoint) => s + d.failed,  0)
+  const totalSkipped = trendData.reduce((s: number, d: TrendPoint) => s + d.skipped, 0)
+  const totalBroken  = trendData.reduce((s: number, d: TrendPoint) => s + d.broken,  0)
   const avgPassRate  = trendData.length > 0
-    ? (trendData.reduce((s: number, d: any) => s + d.pass_rate, 0) / trendData.length).toFixed(1)
+    ? (trendData.reduce((s: number, d: TrendPoint) => s + d.pass_rate, 0) / trendData.length).toFixed(1)
     : '—'
 
   return (

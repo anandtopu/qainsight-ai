@@ -43,7 +43,7 @@ export default function LoginPage() {
       toast.success('Logged in successfully');
       navigate(from, { replace: true });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login failed', err);
       toast.error('Invalid username or password');
     } finally {
