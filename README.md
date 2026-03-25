@@ -81,7 +81,7 @@ graph TD
         SSE[SSE / WebSocket Streaming]
         Auth[JWT Authentication & Security Middleware]
         Analytics[Analytics Engine]
-        Notify[Notification Services (Slack/Teams/Email)]
+        Notify[Notification Services - Slack, Teams, Email]
     end
 
     subgraph AI_Intelligence_Layer [AI and Intelligence]
