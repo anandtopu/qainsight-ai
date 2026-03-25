@@ -147,6 +147,19 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ── Fine-Tuning / Continuous Learning ────────────────────
+    FINETUNE_ENABLED: bool = False                    # master switch
+    FINETUNE_CLASSIFIER_MIN_EXAMPLES: int = 500       # trigger Track 1 classifier fine-tune
+    FINETUNE_REASONING_MIN_EXAMPLES: int = 2000       # trigger Track 2 full ReAct fine-tune
+    FINETUNE_EMBED_MIN_PAIRS: int = 1000              # trigger Track 3 embedding fine-tune
+    FINETUNE_INCREMENTAL_TRIGGER: int = 200           # re-trigger after N new verified examples
+    FINETUNE_EVAL_HOLDOUT: float = 0.10               # fraction held out for evaluation
+    FINETUNE_MIN_ACCURACY_GAIN: float = 0.02          # candidate must beat current model by ≥2%
+    FINETUNE_EXPORT_BUCKET: str = "training-data"     # MinIO bucket for JSONL exports
+    FINETUNE_OPENAI_SUFFIX: str = "qainsight"         # suffix for OpenAI fine-tune job names
+    CLASSIFIER_CONFIDENCE_THRESHOLD: int = 85         # min confidence to trust fast classifier
+    CLASSIFIER_MODEL: Optional[str] = None            # None = use LLM_MODEL
+
     # ── Webhook Security ──────────────────────────────────────
     WEBHOOK_SECRET: str = "change-me-webhook-secret"
 

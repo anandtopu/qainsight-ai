@@ -18,7 +18,7 @@ from app.core.deps import get_current_active_user
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
 from app.db.redis_client import close_redis
-from app.routers import agents, analyze, analytics, auth, chat, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
+from app.routers import agents, analyze, analytics, auth, chat, feedback, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
@@ -115,6 +115,7 @@ app.include_router(notifications.router, dependencies=protected_deps)
 app.include_router(live.router, dependencies=protected_deps)
 app.include_router(agents.router, dependencies=protected_deps)
 app.include_router(chat.router, dependencies=protected_deps)
+app.include_router(feedback.router, dependencies=protected_deps)
 
 # Debug — ADMIN only (role check applied at endpoint level in debug.py)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"], dependencies=protected_deps)

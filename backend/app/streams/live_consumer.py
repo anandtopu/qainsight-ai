@@ -31,7 +31,6 @@ import json
 import logging
 import socket
 import time
-from typing import Optional
 
 from app.db.redis_client import get_redis
 from app.streams import (

@@ -84,12 +84,37 @@ async def run_triage_agent(
     timestamp: Optional[str] = None,
     ocp_pod_name: Optional[str] = None,
     ocp_namespace: Optional[str] = None,
+    error_message: Optional[str] = None,
+    stack_trace: Optional[str] = None,
 ) -> dict:
     """
     Execute the LangChain ReAct triage agent for a failed test case.
-    Stores full audit trail to MongoDB.
+
+    Fast path: tries the FastClassifier first (single LLM call, ~50ms).
+    If the classifier is confident enough (>= CLASSIFIER_CONFIDENCE_THRESHOLD),
+    returns immediately without running the full ReAct agent.
+
+    Slow path: falls through to the full ReAct agent with 5 investigation tools.
+
+    Stores full audit trail to MongoDB in both cases.
     Returns structured analysis dict.
     """
+    # ── Fast path: single-call classifier ────────────────────────────────────
+    if error_message or stack_trace:
+        try:
+            from app.services.training.classifier import FastClassifier
+            quick = await FastClassifier.classify(
+                test_name=test_name,
+                error_message=error_message or "",
+                stack_trace=stack_trace or "",
+            )
+            if quick is not None:
+                await _store_audit_trail(test_case_id, f"fast_classifier:{test_name}", quick, [])
+                return quick
+        except Exception as fc_exc:
+            logger.debug("FastClassifier skipped: %s", fc_exc)
+
+    # ── Slow path: full ReAct agent ───────────────────────────────────────────
     llm = get_llm()
     tools = _get_tools()
 

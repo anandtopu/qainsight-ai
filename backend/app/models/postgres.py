@@ -406,6 +406,81 @@ class ChatMessage(Base):
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
 
 
+class FeedbackRating(str, PyEnum):
+    CORRECT = "correct"
+    INCORRECT = "incorrect"
+    PARTIALLY_CORRECT = "partially_correct"
+
+
+class AIFeedback(Base):
+    """
+    Human feedback on AI triage results — the primary training signal.
+
+    Sources:
+      - manual: engineer rates analysis card in the UI (explicit)
+      - jira_resolved: Jira ticket created by AI was resolved (implicit positive)
+      - jira_invalid: Jira ticket closed as invalid/won't-fix (implicit negative)
+      - category_correction: engineer changed the failure_category in the UI
+    """
+    __tablename__ = "ai_feedback"
+    __table_args__ = (
+        Index("ix_ai_feedback_analysis", "analysis_id"),
+        Index("ix_ai_feedback_created", "created_at"),
+        Index("ix_ai_feedback_rating", "rating"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    analysis_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_analysis.id", ondelete="CASCADE"), nullable=False)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    rating: Mapped[FeedbackRating] = mapped_column(String(25), nullable=False)
+    corrected_category: Mapped[Optional[FailureCategory]] = mapped_column(String(30), nullable=True)
+    corrected_root_cause: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # "manual" | "jira_resolved" | "jira_invalid" | "category_correction"
+    source: Mapped[str] = mapped_column(String(50), default="manual")
+    # Whether this record has been exported into a training batch
+    exported: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class ModelVersion(Base):
+    """
+    Registry of fine-tuned model versions per training track.
+
+    Tracks the full lifecycle: training → evaluation → active/retired.
+    The model_registry service uses this table + Redis for hot-swap lookups.
+    """
+    __tablename__ = "model_versions"
+    __table_args__ = (
+        Index("ix_model_versions_track_status", "track", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Track: "classifier" | "reasoning" | "embedding"
+    track: Mapped[str] = mapped_column(String(30), nullable=False)
+    # Human-readable model name (e.g. "qwen2.5:7b-qainsight-v3", "ft:gpt-4o-mini:qainsight-2025-07")
+    model_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    # Status: "training" | "evaluating" | "active" | "retired" | "failed"
+    status: Mapped[str] = mapped_column(String(20), default="training")
+    # Training metadata
+    training_examples: Mapped[int] = mapped_column(Integer, default=0)
+    holdout_examples: Mapped[int] = mapped_column(Integer, default=0)
+    # Evaluation metrics
+    eval_accuracy: Mapped[Optional[float]] = mapped_column(Float)
+    baseline_accuracy: Mapped[Optional[float]] = mapped_column(Float)
+    eval_details: Mapped[Optional[dict]] = mapped_column(JSON)
+    # Provider-specific job ID (OpenAI fine-tuning job ID, Ollama model tag, etc.)
+    provider_job_id: Mapped[Optional[str]] = mapped_column(String(200))
+    # Path to JSONL training file in MinIO
+    training_file_path: Mapped[Optional[str]] = mapped_column(String(1000))
+    promoted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    retired_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
 class NotificationLog(Base):
     """Audit trail for every dispatched notification."""
     __tablename__ = "notification_logs"

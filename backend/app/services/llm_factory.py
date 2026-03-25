@@ -17,23 +17,36 @@ def get_llm(
     provider: Optional[str] = None,
     model: Optional[str] = None,
     temperature: Optional[float] = None,
+    track: Optional[str] = None,
 ) -> BaseChatModel:
     """
     Return a LangChain chat model for the configured provider.
 
     Args:
-        provider: Override LLM_PROVIDER env var
-        model:    Override LLM_MODEL env var
+        provider:    Override LLM_PROVIDER env var
+        model:       Override LLM_MODEL env var (takes precedence over registry)
         temperature: Override LLM_TEMPERATURE env var
+        track:       If set ("reasoning"), check ModelRegistry for a promoted fine-tuned
+                     model before falling back to LLM_MODEL. Used by run_triage_agent.
 
     Returns:
         A LangChain BaseChatModel compatible with ReAct agents
     """
     _provider = (provider or settings.LLM_PROVIDER).lower()
-    _model = model or settings.LLM_MODEL
     _temperature = temperature if temperature is not None else settings.LLM_TEMPERATURE
 
-    logger.info(f"Initialising LLM: provider={_provider}, model={_model}")
+    # Resolve model name: explicit override > fine-tuned registry > config default
+    if model:
+        _model = model
+    elif track:
+        _model = _get_active_model_sync(track) or settings.LLM_MODEL
+    else:
+        _model = settings.LLM_MODEL
+
+    if track:
+        logger.info("Initialising LLM: provider=%s model=%s track=%s", _provider, _model, track)
+    else:
+        logger.info("Initialising LLM: provider=%s model=%s", _provider, _model)
 
     if _provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -122,3 +135,33 @@ def get_embedding_model():
         # Fallback: use Ollama with default embedding model
         from langchain_ollama import OllamaEmbeddings
         return OllamaEmbeddings(model="nomic-embed-text", base_url=settings.OLLAMA_BASE_URL)
+
+
+def _get_active_model_sync(track: str) -> Optional[str]:
+    """
+    Synchronous wrapper around ModelRegistry.get_active_model() for use in get_llm().
+    Returns None if no fine-tuned model is active for the given track.
+    """
+    try:
+        import asyncio
+        from app.db.redis_client import get_redis
+        redis = get_redis()
+        key = f"qainsight:model:active:{track}"
+        # Use the sync Redis client path if an event loop is already running
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Cannot await inside sync function — use create_task or return None
+            # (caller is synchronous; model registry is best-effort)
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, _async_get_model(track))
+                return future.result(timeout=1.0)
+        else:
+            return loop.run_until_complete(_async_get_model(track))
+    except Exception:
+        return None
+
+
+async def _async_get_model(track: str) -> Optional[str]:
+    from app.services.model_registry import ModelRegistry
+    return await ModelRegistry.get_active_model(track)

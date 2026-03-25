@@ -20,7 +20,8 @@ from app.streams import LIVE_ACTIVE_SET, LIVE_STATE_KEY
 logger = logging.getLogger("streams.live_state")
 
 # Key builders
-_STATE_KEY = lambda run_id: LIVE_STATE_KEY.format(run_id=run_id)
+def _STATE_KEY(run_id: str) -> str:
+    return LIVE_STATE_KEY.format(run_id=run_id)
 _TTL = 86_400          # 24 hours — cleans up abandoned runs automatically
 _WARN_THRESHOLD = 10   # need at least this many completed tests before warning
 _WARN_PASS_RATE  = 50.0

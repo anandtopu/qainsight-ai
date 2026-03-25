@@ -9,7 +9,7 @@ celery_app = Celery(
     "qainsight",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.worker.tasks"],
+    include=["app.worker.tasks", "app.worker.training_tasks"],
 )
 
 # ── Priority queues ────────────────────────────────────────────────────────────
@@ -37,16 +37,28 @@ celery_app.conf.update(
     task_default_exchange="default",
     task_default_routing_key="default",
     task_routes={
-        "app.worker.tasks.run_live_test_analysis": {"queue": "critical"},
-        "app.worker.tasks.ingest_test_run":         {"queue": "ingestion"},
-        "app.worker.tasks.run_ai_analysis":         {"queue": "ai_analysis"},
-        "app.worker.tasks.run_agent_pipeline":      {"queue": "ai_analysis"},
-        "app.worker.tasks.*":                       {"queue": "default"},
+        "app.worker.tasks.run_live_test_analysis":          {"queue": "critical"},
+        "app.worker.tasks.ingest_test_run":                 {"queue": "ingestion"},
+        "app.worker.tasks.run_ai_analysis":                 {"queue": "ai_analysis"},
+        "app.worker.tasks.run_agent_pipeline":              {"queue": "ai_analysis"},
+        "app.worker.training_tasks.export_training_data":   {"queue": "default"},
+        "app.worker.training_tasks.check_finetune_trigger": {"queue": "default"},
+        "app.worker.training_tasks.run_finetune_pipeline":  {"queue": "default"},
+        "app.worker.tasks.*":                               {"queue": "default"},
     },
     beat_schedule={
         "daily-coverage-snapshot": {
             "task": "app.worker.tasks.take_coverage_snapshot",
             "schedule": crontab(hour=0, minute=5),
+        },
+        # Continuous learning pipeline
+        "weekly-training-export": {
+            "task": "app.worker.training_tasks.export_training_data",
+            "schedule": crontab(hour=2, minute=0, day_of_week="sunday"),
+        },
+        "daily-finetune-trigger-check": {
+            "task": "app.worker.training_tasks.check_finetune_trigger",
+            "schedule": crontab(hour=3, minute=0),
         },
     },
     # Prevent memory bloat from stale results
