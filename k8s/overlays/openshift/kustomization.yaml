@@ -21,10 +21,10 @@ patches:
 
 images:
   - name: qainsight/backend
-    newTag: "3.0.0"
+    newTag: "0.0.1"
   - name: qainsight/frontend
-    newTag: "3.0.0"
+    newTag: "0.0.1"
   - name: qainsight/mcp
-    newTag: "3.0.0"
+    newTag: "0.0.1"
 
 

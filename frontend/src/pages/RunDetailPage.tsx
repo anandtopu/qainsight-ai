@@ -9,6 +9,16 @@ import { useRun, useTestCases } from '@/hooks/useRuns'
 import { formatDateTime, formatDuration } from '@/utils/formatters'
 import { clsx } from 'clsx'
 
+interface TestCase {
+  id: string
+  test_name: string
+  class_name?: string
+  suite_name?: string
+  status: string
+  duration_ms?: number
+  failure_category?: string
+}
+
 const STATUSES = ['', 'FAILED', 'BROKEN', 'PASSED', 'SKIPPED']
 
 export default function RunDetailPage() {
@@ -91,8 +101,7 @@ export default function RunDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {(data?.items ?? []).map((tc: any) => (
+                {((data?.items ?? []) as TestCase[]).map((tc) => (
                   <tr
                     key={tc.id}
                     className="table-row"

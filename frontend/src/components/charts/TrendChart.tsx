@@ -83,7 +83,7 @@ export default function TrendChart({ data, type = 'line', height = 280 }: Props)
         <Line type="monotone" dataKey="passed"  stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Passed" />
         <Line type="monotone" dataKey="failed"  stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Failed" />
         <Line type="monotone" dataKey="skipped" stroke="#f59e0b" strokeWidth={1.5} dot={false} activeDot={{ r: 4 }} name="Skipped" strokeDasharray="4 2" />
-        <Line type="monotone" dataKey="pass_rate" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Pass Rate %" yAxisId="right" hide />
+        <Line type="monotone" dataKey="pass_rate" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Pass Rate %" hide />
       </LineChart>
     </ResponsiveContainer>
   )

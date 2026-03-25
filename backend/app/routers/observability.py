@@ -77,14 +77,14 @@ async def receive_frontend_telemetry(
             "frontend_error",
             extra={
                 "error_type": err.type,
-                "message": err.message,
-                "url": err.url,
-                "stack": err.stack,
+                "error_message": err.message,
+                "error_url": err.url,
+                "error_stack": err.stack,
                 "component_stack": err.component_stack,
                 "user_agent": err.user_agent,
                 "client_ip": client_ip,
                 "occurred_at": err.timestamp or now,
-                **(err.context or {}),
+                "fe_context": err.context or {},
             },
         )
 

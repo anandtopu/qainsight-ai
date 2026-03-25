@@ -1,5 +1,5 @@
 
-> qainsight-ai-frontend@3.0.0 lint
+> qainsight-ai-frontend@0.0.1 lint
 > eslint src
 
 

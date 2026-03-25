@@ -154,7 +154,7 @@ async def coverage_stats(
             COUNT(DISTINCT tc.test_fingerprint)  AS unique_tests,
             COUNT(DISTINCT tc.suite_name)        AS suite_count,
             COUNT(*)                              AS total_executions,
-            ROUND(AVG(tr.pass_rate), 1)           AS avg_pass_rate,
+            ROUND(AVG(tr.pass_rate)::numeric, 1)  AS avg_pass_rate,
             COUNT(DISTINCT DATE_TRUNC('day', tr.created_at)) AS days_with_runs
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id

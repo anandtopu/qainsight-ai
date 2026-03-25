@@ -194,8 +194,9 @@ app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"], depende
 async def rate_limit_login(request: Request, call_next):
     """Apply 10 requests/minute rate limit to the login endpoint."""
     if request.url.path == "/api/v1/auth/login" and request.method == "POST":
+        limit = "60/minute" if settings.APP_ENV == "development" else "10/minute"
 
-        @limiter.limit("10/minute")
+        @limiter.limit(limit)
         async def _limited(request: Request):
             pass
 

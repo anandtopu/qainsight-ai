@@ -5,7 +5,7 @@ metadata:
   namespace: qainsight-ai
 data:
   APP_ENV: "production"
-  APP_VERSION: "3.0.0"
+  APP_VERSION: "0.0.1"
   LOG_LEVEL: "INFO"
   LOG_FORMAT: "json"
   POSTGRES_HOST: "qainsight-postgres"

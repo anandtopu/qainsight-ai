@@ -160,8 +160,14 @@ shell-backend: ## Open a shell in the backend container
 shell-db: ## Open psql in the postgres container
 	$(DOCKER_COMPOSE) exec postgres psql -U ${POSTGRES_USER:-qainsight_user} -d ${POSTGRES_DB:-qainsight}
 
-simulate-upload: ## Simulate a Jenkins test run upload to MinIO (for testing)
+simulate-upload: ## Simulate a single Jenkins test run upload to MinIO
 	$(DOCKER_COMPOSE) exec backend python /app/scripts/simulate_upload.py
+
+seed-data: ## Seed all dashboard features with realistic data (3 projects × 12 runs × 15 tests)
+	$(DOCKER_COMPOSE) exec backend python //app/scripts/seed_data.py
+
+seed-data-reset: ## Wipe and regenerate all seed data
+	$(DOCKER_COMPOSE) exec backend python //app/scripts/seed_data.py --reset
 
 setup-minio: ## Manually configure MinIO bucket and webhook
 	./scripts/setup-minio.sh

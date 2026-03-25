@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production"] = "development"
     APP_SECRET_KEY: str = "change-me-in-production"
     APP_DEBUG: bool = False
-    APP_VERSION: str = "3.0.0"
+    APP_VERSION: str = "0.0.1"
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # ── Database (PostgreSQL) ────────────────────────────────

@@ -29,6 +29,9 @@ async def list_projects(
     dependencies=[Depends(require_role(UserRole.QA_LEAD))],
 )
 async def create_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db)):
+    existing = await db.execute(select(Project).where(Project.slug == payload.slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Project with slug '{payload.slug}' already exists")
     project = Project(**payload.model_dump())
     db.add(project)
     await db.commit()

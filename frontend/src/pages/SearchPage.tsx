@@ -9,13 +9,29 @@ import { searchService } from '@/services/searchService'
 import { fromNow } from '@/utils/formatters'
 import { useProjectStore } from '@/store/projectStore'
 
+interface SearchResult {
+  test_case_id: string
+  test_run_id: string
+  test_name: string
+  suite_name?: string
+  status: string
+  failure_count: number
+  last_run_date: string
+}
+
+interface SearchResponse {
+  total: number
+  query: string
+  items: SearchResult[]
+  pages: number
+}
+
 export default function SearchPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const projectId = useProjectStore(s => s.activeProjectId)
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
 
@@ -73,8 +89,7 @@ export default function SearchPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {results.items.map((r: any) => (
+                {results.items.map((r) => (
                   <tr
                     key={r.test_case_id}
                     className="table-row"

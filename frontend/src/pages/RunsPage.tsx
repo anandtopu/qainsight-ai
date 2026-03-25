@@ -10,6 +10,21 @@ import { useRuns } from '@/hooks/useRuns'
 import { formatDateTime, fromNow, formatDuration, formatPassRate } from '@/utils/formatters'
 import { useProjectStore } from '@/store/projectStore'
 
+interface TestRun {
+  id: string
+  build_number: number
+  jenkins_job?: string
+  branch?: string
+  status: string
+  passed_tests: number
+  failed_tests: number
+  total_tests: number
+  pass_rate: number
+  duration_ms?: number
+  created_at: string
+  ocp_pod_name?: string
+}
+
 export default function RunsPage() {
   const navigate = useNavigate()
   const project = useProjectStore(s => s.activeProject)
@@ -67,8 +82,7 @@ export default function RunsPage() {
                 </tr>
               </thead>
               <tbody>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {data.items.map((run: any) => (
+                {(data.items as TestRun[]).map((run) => (
                   <tr
                     key={run.id}
                     className="table-row"
