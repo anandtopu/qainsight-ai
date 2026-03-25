@@ -69,7 +69,7 @@ graph TD
     end
 
     subgraph MCP_Layer [MCP Integration]
-        MCP[MCP Server :8002]
+        MCP[MCP Server port 8002]
         MCP_TOOLS[20 Tools]
         MCP_RES[10 Resources]
         MCP_PROMPTS[6 Prompt Workflows]
@@ -112,10 +112,10 @@ graph TD
     end
 
     subgraph Deployment_Targets [Deployment Targets]
-        Compose[Docker Compose (local/dev)]
-        K8s[Kubernetes overlays: dev/staging/prod]
-        OCP[OpenShift overlay + Routes]
-        Cloud[GCP Cloud Run + Cloud SQL path]
+        Compose[Docker Compose local and dev]
+        K8s[Kubernetes overlays dev staging prod]
+        OCP[OpenShift overlay and Routes]
+        Cloud[GCP Cloud Run and Cloud SQL path]
     end
 
     %% MCP Client connections

@@ -1,4 +1,4 @@
-# QA Insight AI Multi-Cloud Deployment Strategy
+  # QA Insight AI Multi-Cloud Deployment Strategy
 
 This document defines a cloud-portable strategy for deploying QA Insight AI on AWS, GCP, Azure, and private cloud Kubernetes/OpenShift.
 
