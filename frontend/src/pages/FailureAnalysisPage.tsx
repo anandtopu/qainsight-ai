@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Bug, TrendingDown, AlertTriangle, Flame } from 'lucide-react'
 import {
-  Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip,
+  Cell, Pie, PieChart, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 import { clsx } from 'clsx'

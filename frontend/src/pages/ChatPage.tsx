@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Bot, ChevronDown, MessageSquare, Plus, Send, Trash2, User,
+  Bot, MessageSquare, Plus, Send, Trash2, User,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
-import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useChat, useChatSessions } from '@/hooks/useChat'
 import chatService from '@/services/chatService'

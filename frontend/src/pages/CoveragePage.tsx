@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck, Layers, TestTube } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { clsx } from 'clsx'
 import PageHeader from '@/components/ui/PageHeader'

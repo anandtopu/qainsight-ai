@@ -13,7 +13,7 @@ export function useChatSessions() {
 export function useChatMessages(sessionId: string | null) {
   return useSWR<ChatMessage[]>(
     sessionId ? `/chat/sessions/${sessionId}/messages` : null,
-    () => chatService.getMessages(sessionId!).then((r) => r.data),
+    () => chatService.getMessages(sessionId ?? '').then((r) => r.data),
     { revalidateOnFocus: false },
   )
 }

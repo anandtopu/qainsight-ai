@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Activity, AlertTriangle, Bot, CheckCircle, ChevronDown, ChevronRight,
-  Clock, FileText, GitBranch, Play, RefreshCw, XCircle, Zap,
+  Clock, FileText, GitBranch, RefreshCw, XCircle, Zap,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useActiveLiveRuns, usePipelineStages, usePipelines, useRunSummary } from '@/hooks/useAgentRuns'
-import agentService from '@/services/agentService'
+import agentService, { ActiveLiveRun } from '@/services/agentService'
 import type { AgentPipelineRun, AgentStageResult } from '@/services/agentService'
 
 // ── Stage metadata ─────────────────────────────────────────────
@@ -170,7 +170,7 @@ function PipelineCard({
   )
 }
 
-function LiveRunCard({ run }: { run: any }) {
+function LiveRunCard({ run }: { run: ActiveLiveRun }) {
   const completed = run.passed + run.failed + run.broken
   const progress = run.total > 0 ? (completed / run.total) * 100 : 0
 
@@ -221,7 +221,7 @@ export default function AgentStatusPage() {
       : null,
   )
 
-  const handleTrigger = async (testRunId: string) => {
+  const _handleTrigger = async (testRunId: string) => {
     try {
       await agentService.triggerPipeline(testRunId)
       toast.success('Pipeline triggered successfully')
