@@ -20,21 +20,35 @@ make migrate
 # 4. Pull local LLM (Ollama)
 make pull-llm        # qwen2.5:7b + nomic-embed-text
 
-# 5. Simulate a test run
+# 5. Create your first user account (no default credentials exist)
+#    Open http://localhost:8000/docs → POST /api/v1/auth/register
+#    Or use curl:
+curl -s -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","username":"admin","full_name":"Admin","password":"changeme123"}'
+
+# 6. Simulate a test run
 make simulate-upload
 
-# 6. Set up MCP server (optional — for AI Assistant integration)
+# 7. Set up MCP server (optional — for AI Assistant integration)
 make mcp-install
 ```
 
 Services will be available at:
-| Service | URL | Notes |
-|---------|-----|-------|
-| Dashboard | http://localhost:3000 | React SPA |
-| API Docs | http://localhost:8000/docs | Swagger UI |
-| MinIO Console | http://localhost:9001 | admin / password123 |
-| Flower (Celery) | http://localhost:5555 | Worker monitoring |
-| MCP SSE Server | http://localhost:8002/sse | AI assistant endpoint |
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Dashboard | http://localhost:3000 | Email + password you registered in step 5 |
+| API Docs | http://localhost:8000/docs | — (use the Authorize button with a JWT token) |
+| MinIO Console | http://localhost:9001 | `admin` / `password123` |
+| Flower (Celery) | http://localhost:5555 | No auth in dev |
+| MCP SSE Server | http://localhost:8002/sse | — |
+
+> **No default dashboard credentials.** The database starts empty. Register your first account via `POST /api/v1/auth/register` (Swagger or curl above). All registered users default to the `QA_ENGINEER` role. To promote to `ADMIN`:
+> ```bash
+> make shell-db
+> # inside psql:
+> UPDATE users SET role = 'ADMIN' WHERE username = 'admin';
+> ```
 
 ---
 
