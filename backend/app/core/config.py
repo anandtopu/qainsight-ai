@@ -172,6 +172,16 @@ class Settings(BaseSettings):
     # ── Webhook Security ──────────────────────────────────────
     WEBHOOK_SECRET: str = "change-me-webhook-secret"
 
+    # ── Observability ─────────────────────────────────────────
+    # OpenTelemetry
+    OTEL_ENABLED: bool = True
+    OTEL_SERVICE_NAME: str = "qainsight-ai"
+    # OTLP HTTP collector endpoint, e.g. "http://jaeger:4318"
+    # When empty, spans are written to stdout (development fallback)
+    OTEL_EXPORTER_OTLP_ENDPOINT: Optional[str] = None
+    # Prometheus metrics endpoint
+    METRICS_ENABLED: bool = True
+
     # ── Logging ───────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: Literal["json", "text"] = "json"

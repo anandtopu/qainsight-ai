@@ -61,6 +61,23 @@ defusedxml==0.7.1
 httpx==0.28.1
 aiohttp==3.11.10
 
+# ── Observability: OpenTelemetry ─────────────────────────────
+# Core SDK + OTLP HTTP exporter (ships spans to Jaeger / any OTel Collector)
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-http==1.27.0
+# Auto-instrumentors — must match sdk 1.27.0 → instrumentor 0.48b0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-sqlalchemy==0.48b0
+opentelemetry-instrumentation-httpx==0.48b0
+opentelemetry-instrumentation-redis==0.48b0
+opentelemetry-instrumentation-celery==0.48b0
+
+# ── Observability: Prometheus metrics ────────────────────────
+prometheus-client==0.21.0
+# Zero-config HTTP metrics for FastAPI (exposes /metrics endpoint)
+prometheus-fastapi-instrumentator==7.0.0
+
 # ── Utilities ────────────────────────────────────────────────
 python-dateutil==2.9.0.post0
 pytz==2024.2

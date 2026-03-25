@@ -15,14 +15,58 @@ from slowapi.util import get_remote_address  # type: ignore
 
 from app.core.config import settings
 from app.core.deps import get_current_active_user
+from app.core.logging_config import configure_logging
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
 from app.db.redis_client import close_redis
-from app.routers import agents, analyze, analytics, auth, chat, deep_investigation, feedback, integrations, live, metrics, notifications, projects, release_readiness, runs, search, webhooks, debug
+from app.routers import (
+    agents,
+    analyze,
+    analytics,
+    auth,
+    chat,
+    deep_investigation,
+    debug,
+    feedback,
+    integrations,
+    live,
+    metrics,
+    notifications,
+    projects,
+    release_readiness,
+    runs,
+    search,
+    webhooks,
+)
+from app.routers.health import router as health_router
+from app.routers.observability import router as observability_router
 
-# ── Logging setup ─────────────────────────────────────────────
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
+# ── Structured logging ────────────────────────────────────────
+configure_logging()
 logger = structlog.get_logger(__name__)
+
+# ── Distributed tracing (OpenTelemetry) ──────────────────────
+if settings.OTEL_ENABLED:
+    from app.core.tracing import setup_tracing  # noqa: PLC0415
+
+    setup_tracing(
+        service_name=settings.OTEL_SERVICE_NAME,
+        service_version=settings.APP_VERSION,
+        environment=settings.APP_ENV,
+        otlp_endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT,
+    )
+
+# ── Prometheus metrics (initialise counters) ─────────────────
+if settings.METRICS_ENABLED:
+    from app.core.metrics import app_info  # noqa: PLC0415
+
+    app_info.info(
+        {
+            "version": settings.APP_VERSION,
+            "env": settings.APP_ENV,
+            "llm_provider": settings.LLM_PROVIDER,
+        }
+    )
 
 # ── Rate limiter (login brute-force protection) ───────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
@@ -93,8 +137,23 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Webhook-Secret"],
+    allow_headers=["Content-Type", "Authorization", "X-Webhook-Secret", "X-Request-ID"],
 )
+
+# ── Telemetry middleware (request logging + X-Request-ID) ────
+from app.middleware.telemetry import TelemetryMiddleware  # noqa: PLC0415, E402
+
+app.add_middleware(TelemetryMiddleware)
+
+# ── Prometheus /metrics endpoint ─────────────────────────────
+if settings.METRICS_ENABLED:
+    from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore  # noqa: PLC0415, E402
+
+    Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/metrics", "/health/live", "/health/ready"],
+    ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 # ── Routers ───────────────────────────────────────────────────
 # Public
@@ -121,6 +180,12 @@ app.include_router(feedback.router, dependencies=protected_deps)
 app.include_router(deep_investigation.router, dependencies=protected_deps)
 app.include_router(release_readiness.router, dependencies=protected_deps)
 
+# Observability — public (no JWT required: browser fires-and-forgets)
+app.include_router(observability_router)
+
+# Health checks — public
+app.include_router(health_router)
+
 # Debug — ADMIN only (role check applied at endpoint level in debug.py)
 app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"], dependencies=protected_deps)
 
@@ -145,9 +210,10 @@ async def rate_limit_login(request: Request, call_next):
     return await call_next(request)
 
 
-# ── Health check ──────────────────────────────────────────────
-@app.get("/health", tags=["System"])
-async def health_check():
+# ── Legacy single-endpoint health shim (keeps old K8s probes working) ────────
+@app.get("/health", tags=["Health"], include_in_schema=False)
+async def health_shim():
+    """Legacy liveness shim — prefer /health/live and /health/ready."""
     return {"status": "ok", "version": settings.APP_VERSION}
 
 

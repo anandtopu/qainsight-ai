@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'QA Insight AI'
+    orgId: 1
+    folder: 'QA Insight AI'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

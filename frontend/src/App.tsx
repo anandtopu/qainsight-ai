@@ -4,6 +4,7 @@ import AppLayout from '@/components/layout/AppLayout'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/LoginPage'
+import { useWebVitals } from '@/hooks/useWebVitals'
 
 // Lazy-load all pages for code splitting
 const OverviewPage       = lazy(() => import('@/pages/OverviewPage'))
@@ -30,6 +31,7 @@ const Fallback = () => (
 )
 
 export default function App() {
+  useWebVitals()
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

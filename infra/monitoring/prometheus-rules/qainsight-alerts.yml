@@ -1,0 +1,83 @@
+# QA Insight AI — Prometheus alerting rules
+groups:
+  - name: qainsight.application
+    interval: 30s
+    rules:
+
+      # Backend is down
+      - alert: QAInsightBackendDown
+        expr: up{job="qainsight-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "QA Insight backend is down"
+          description: "The FastAPI backend has been unreachable for more than 1 minute."
+
+      # High HTTP 5xx error rate
+      - alert: QAInsightHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="qainsight-backend", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="qainsight-backend"}[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "More than 5% of HTTP requests are returning 5xx status codes."
+
+      # Slow HTTP responses
+      - alert: QAInsightSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="qainsight-backend"}[5m]))
+            by (le)
+          ) > 5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95th-percentile HTTP latency > 5s"
+          description: "p95 response time has exceeded 5 seconds for 3 minutes."
+
+      # AI pipeline failures
+      - alert: QAInsightAIPipelineFailures
+        expr: |
+          sum(increase(qainsight_ai_analyses_total{status="failure"}[10m])) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI pipeline experiencing repeated failures"
+          description: "More than 5 AI analysis pipeline failures in the last 10 minutes."
+
+      # LLM circuit breaker open
+      - alert: QAInsightLLMCircuitBreakerOpen
+        expr: increase(qainsight_llm_circuit_breaker_trips_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM circuit breaker tripped"
+          description: "The LLM circuit breaker has opened. AI analysis may be degraded."
+
+      # Celery worker down
+      - alert: QAInsightCeleryWorkerDown
+        expr: up{job="qainsight-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery worker is unreachable"
+          description: "Background task processing may be degraded."
+
+      # Too many active pipeline runs (possible stuck pipelines)
+      - alert: QAInsightTooManyActivePipelines
+        expr: sum(qainsight_active_pipeline_runs) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Abnormally high number of active pipeline runs"
+          description: "More than 20 pipeline runs are simultaneously active — possible stuck pipelines."
