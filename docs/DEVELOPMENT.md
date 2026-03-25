@@ -21,11 +21,15 @@ make migrate
 make pull-llm        # qwen2.5:7b + nomic-embed-text
 
 # 5. Create your first user account (no default credentials exist)
-#    Open http://localhost:8000/docs → POST /api/v1/auth/register
-#    Or use curl:
+#    Easiest: open http://localhost:8000/docs → POST /api/v1/auth/register → Try it out
+#
+#    Git Bash / macOS / Linux:
 curl -s -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","username":"admin","full_name":"Admin","password":"changeme123"}'
+#
+#    Windows cmd.exe (single line, escaped quotes):
+#    curl -s -X POST http://localhost:8000/api/v1/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@example.com\",\"username\":\"admin\",\"full_name\":\"Admin\",\"password\":\"changeme123\"}"
 
 # 6. Simulate a test run
 make simulate-upload
