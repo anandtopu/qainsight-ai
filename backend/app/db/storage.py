@@ -36,18 +36,24 @@ class StorageProvider(ABC):
 
 
 class S3StorageProvider(StorageProvider):
-    """S3/MinIO compatible storage provider."""
+    """S3/MinIO compatible storage provider with connection pooling."""
 
     def __init__(self):
-        self.session = aioboto3.Session()
+        # Single session reused across all requests — aioboto3 manages the pool internally
+        self._session = aioboto3.Session()
+        self._endpoint = f"{'https' if settings.MINIO_USE_SSL else 'http'}://{settings.MINIO_ENDPOINT}"
+        self._config = Config(
+            signature_version="s3v4",
+            max_pool_connections=settings.S3_MAX_POOL_CONNECTIONS,
+        )
 
     def get_client_context(self):
-        return self.session.client(
+        return self._session.client(
             "s3",
-            endpoint_url=f"{'https' if settings.MINIO_USE_SSL else 'http'}://{settings.MINIO_ENDPOINT}",
+            endpoint_url=self._endpoint,
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
-            config=Config(signature_version="s3v4"),
+            config=self._config,
             region_name="us-east-1",
         )
 

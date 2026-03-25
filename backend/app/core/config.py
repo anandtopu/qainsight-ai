@@ -51,6 +51,31 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
     CELERY_WORKER_CONCURRENCY: int = 4
 
+    # ── Performance / Scalability tunables ────────────────────
+    # PostgreSQL pool (None = auto-size by environment)
+    PG_POOL_SIZE: Optional[int] = None          # dev=5, staging=15, prod=20
+    PG_MAX_OVERFLOW: Optional[int] = None       # dev=10, staging=30, prod=50
+    PG_POOL_RECYCLE: int = 1800                 # seconds — recycle idle connections
+    PG_POOL_TIMEOUT: int = 30                   # seconds — wait for available connection
+
+    # MongoDB pool
+    MONGO_MAX_POOL_SIZE: int = 50
+    MONGO_MIN_POOL_SIZE: int = 5
+    MONGO_SOCKET_TIMEOUT_MS: int = 30000
+    MONGO_MAX_IDLE_TIME_MS: int = 60000
+
+    # S3 / MinIO connection pool
+    S3_MAX_POOL_CONNECTIONS: int = 50
+    INGESTION_S3_CONCURRENCY: int = 10          # max parallel S3 fetches per ingestion run
+
+    # AI analysis concurrency
+    LLM_MAX_CONCURRENT_ANALYSES: int = 3        # max parallel LLM root-cause calls
+
+    # WebSocket limits
+    WS_MAX_CONNECTIONS_PER_PROJECT: int = 500
+    WS_MAX_TOTAL_CONNECTIONS: int = 5000
+    WS_BROADCAST_TIMEOUT: float = 5.0           # seconds before dropping a dead connection
+
     # ── LLM Provider ─────────────────────────────────────────
     LLM_PROVIDER: Literal["ollama", "lmstudio", "localai", "vllm", "openai", "gemini"] = "ollama"
     LLM_MODEL: str = "qwen2.5:7b"

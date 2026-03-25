@@ -15,6 +15,10 @@ def get_mongo_client() -> AsyncIOMotorClient:
             settings.MONGO_URI,
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=10000,
+            maxPoolSize=settings.MONGO_MAX_POOL_SIZE,
+            minPoolSize=settings.MONGO_MIN_POOL_SIZE,
+            socketTimeoutMS=settings.MONGO_SOCKET_TIMEOUT_MS,
+            maxIdleTimeMS=settings.MONGO_MAX_IDLE_TIME_MS,
         )
     return _client
 

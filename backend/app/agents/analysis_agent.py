@@ -15,14 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.agents.base import BaseAgent
+from app.core.config import settings
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import AIAnalysis, TestCase
 from app.services.agent import run_triage_agent
 
 logger = logging.getLogger("agents.analysis")
-
-# Limit concurrent LLM calls to avoid overloading Ollama / cloud quota
-_MAX_CONCURRENT = 3
 
 
 class AnalysisAgent(BaseAgent):
@@ -54,7 +52,7 @@ class AnalysisAgent(BaseAgent):
         # Fetch test metadata once
         test_meta = await self._fetch_test_metadata(failed_ids)
 
-        semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
+        semaphore = asyncio.Semaphore(settings.LLM_MAX_CONCURRENT_ANALYSES)
         tasks = [
             self._analyse_one(semaphore, tc_id, test_meta.get(tc_id, {}), state)
             for tc_id in failed_ids

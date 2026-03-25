@@ -19,6 +19,13 @@ dev: ## Start all services in development mode
 	$(DOCKER_COMPOSE) up -d --build
 	@echo "✅ Stack started. Dashboard: http://localhost:3000 | API: http://localhost:8000/docs"
 
+dev-lite: ## Start minimal stack (no Ollama/ChromaDB) — for low-resource machines
+	docker compose -f docker-compose.dev-lite.yml up -d --build
+	@echo "✅ Lite stack started. Dashboard: http://localhost:3000 | API: http://localhost:8000/docs"
+
+dev-lite-stop: ## Stop lite stack
+	docker compose -f docker-compose.dev-lite.yml down
+
 dev-logs: ## Tail logs for all services
 	$(DOCKER_COMPOSE) logs -f
 

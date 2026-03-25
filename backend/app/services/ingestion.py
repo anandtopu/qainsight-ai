@@ -3,6 +3,7 @@ Background ingestion service.
 Parses Allure JSON and TestNG XML from MinIO S3 and routes data
 to PostgreSQL (structured metrics) and MongoDB (raw payloads).
 """
+import asyncio
 import hashlib
 import json
 import logging
@@ -12,6 +13,7 @@ from typing import Optional
 
 from sqlalchemy import Integer, func, select, update
 
+from app.core.config import settings
 from app.db.storage import get_storage_provider
 from app.db.mongo import Collections, get_mongo_db
 from app.db.postgres import AsyncSessionLocal
@@ -67,35 +69,56 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
 
             logger.info(f"Found {len(result_files)} Allure result files")
 
+            # Parallel S3 fetches bounded by semaphore to prevent resource exhaustion
+            sem = asyncio.Semaphore(settings.INGESTION_S3_CONCURRENCY)
+
+            async def _fetch_allure(obj: dict) -> Optional[tuple]:
+                async with sem:
+                    try:
+                        content = await storage.get_object_content(obj["Key"])
+                        result_data = json.loads(content)
+                        parsed = parse_allure_result(result_data, str(run.id), obj["Key"])
+                        if parsed:
+                            return parsed, result_data
+                    except Exception as e:
+                        logger.warning(f"Failed to parse {obj['Key']}: {e}")
+                return None
+
+            allure_results = await asyncio.gather(*[_fetch_allure(obj) for obj in result_files])
+
             parsed_cases = []
-            for obj in result_files:
-                try:
-                    content = await storage.get_object_content(obj["Key"])
-                    result_data = json.loads(content)
-                    parsed = parse_allure_result(result_data, str(run.id), obj["Key"])
-                    if parsed:
-                        parsed_cases.append(parsed)
-                        # Store raw JSON to MongoDB
-                        await _store_raw_allure(parsed, result_data)
-                except Exception as e:
-                    logger.warning(f"Failed to parse {obj['Key']}: {e}")
-                    continue
+            mongo_docs = []
+            for item in allure_results:
+                if item:
+                    parsed, result_data = item
+                    parsed_cases.append(parsed)
+                    mongo_docs.append((parsed, result_data))
+
+            # Batch store raw JSON to MongoDB
+            if mongo_docs:
+                await _store_raw_allure_batch(mongo_docs)
 
             # ── Process TestNG XML ─────────────────────────
             testng_prefix = f"{minio_prefix}testng/"
             testng_objects = await storage.list_objects(testng_prefix)
             xml_files = [obj for obj in testng_objects if obj["Key"].endswith(".xml")]
 
-            for obj in xml_files:
-                try:
-                    content = await storage.get_object_content(obj["Key"])
-                    xml_cases = parse_testng_xml(content.decode("utf-8"), str(run.id))
-                    # Merge with Allure data (Allure takes precedence for enrichment)
-                    for case in xml_cases:
-                        if not any(p["test_name"] == case["test_name"] for p in parsed_cases):
-                            parsed_cases.append(case)
-                except Exception as e:
-                    logger.warning(f"Failed to parse TestNG XML {obj['Key']}: {e}")
+            async def _fetch_testng(obj: dict) -> list:
+                async with sem:
+                    try:
+                        content = await storage.get_object_content(obj["Key"])
+                        return parse_testng_xml(content.decode("utf-8"), str(run.id))
+                    except Exception as e:
+                        logger.warning(f"Failed to parse TestNG XML {obj['Key']}: {e}")
+                        return []
+
+            testng_results = await asyncio.gather(*[_fetch_testng(obj) for obj in xml_files])
+            existing_names = {p["test_name"] for p in parsed_cases}
+            for xml_cases in testng_results:
+                for case in xml_cases:
+                    if case["test_name"] not in existing_names:
+                        parsed_cases.append(case)
+                        existing_names.add(case["test_name"])
 
             # ── Upsert test cases to PostgreSQL ────────────
             for case_data in parsed_cases:
@@ -305,6 +328,33 @@ async def _store_raw_allure(case_data: dict, raw_json: dict) -> None:
         }},
         upsert=True,
     )
+
+
+async def _store_raw_allure_batch(docs: list[tuple[dict, dict]]) -> None:
+    """Batch store Allure JSON payloads in MongoDB using bulk_write for efficiency."""
+    from pymongo import UpdateOne  # type: ignore
+    db = get_mongo_db()
+    now = datetime.now(timezone.utc)
+    operations = [
+        UpdateOne(
+            {"test_case_id": case_data.get("allure_uuid")},
+            {"$set": {
+                "test_case_id": case_data.get("allure_uuid"),
+                "test_run_id": case_data.get("test_run_id"),
+                "test_name": case_data.get("test_name"),
+                "raw_result": raw_json,
+                "updated_at": now,
+            }},
+            upsert=True,
+        )
+        for case_data, raw_json in docs
+    ]
+    try:
+        await db[Collections.RAW_ALLURE_JSON].bulk_write(operations, ordered=False)
+    except Exception as e:
+        logger.warning("MongoDB bulk_write failed, falling back to individual writes: %s", e)
+        for case_data, raw_json in docs:
+            await _store_raw_allure(case_data, raw_json)
 
 
 async def _update_run_aggregates(db, run_id: uuid.UUID) -> None:

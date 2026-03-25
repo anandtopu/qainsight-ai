@@ -20,6 +20,7 @@ celery_app.conf.update(
     task_routes={
         "app.worker.tasks.ingest_test_run": {"queue": "ingestion"},
         "app.worker.tasks.run_ai_analysis": {"queue": "ai_analysis"},
+        "app.worker.tasks.run_agent_pipeline": {"queue": "ai_analysis"},
         "app.worker.tasks.*": {"queue": "default"},
     },
     beat_schedule={
@@ -28,6 +29,16 @@ celery_app.conf.update(
             "schedule": crontab(hour=0, minute=5),
         },
     },
-    worker_prefetch_multiplier=1,
-    task_acks_late=True,
+    # Prevent memory bloat from stale results
+    result_expires=3600,            # expire task results after 1 hour
+    # Worker reliability
+    worker_prefetch_multiplier=1,   # one task at a time per worker (fair dispatch)
+    task_acks_late=True,            # ack only after task completes (safe retries)
+    worker_max_tasks_per_child=200, # recycle worker after 200 tasks (prevent memory leaks)
+    # Time limits: soft warns the task, hard kills it
+    task_soft_time_limit=540,       # 9 min soft (send SIGTERM to task)
+    task_time_limit=660,            # 11 min hard (SIGKILL)
+    # Connection resilience
+    broker_connection_retry_on_startup=True,
+    broker_connection_max_retries=10,
 )

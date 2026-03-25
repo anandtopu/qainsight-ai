@@ -9,6 +9,7 @@ import logging
 from typing import Set
 
 from fastapi import APIRouter, Body, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from app.core.config import settings
 from app.core.deps import verify_webhook_secret
 
 logger = logging.getLogger(__name__)
@@ -18,18 +19,33 @@ router = APIRouter(prefix="/ws", tags=["Live Reporting"])
 # ── Connection manager ─────────────────────────────────────────────────────
 
 class ConnectionManager:
-    """Manages WebSocket connections per project channel."""
+    """Manages WebSocket connections per project channel with connection limits."""
 
     def __init__(self):
         # project_id -> set of WebSocket connections
         self._channels: dict[str, Set[WebSocket]] = {}
 
-    async def connect(self, project_id: str, websocket: WebSocket) -> None:
+    async def connect(self, project_id: str, websocket: WebSocket) -> bool:
+        """Accept the connection; returns False and closes it if limits are exceeded."""
+        # Check total connection limit first (before accept to avoid resource waste)
+        total = self.active_connections
+        if total >= settings.WS_MAX_TOTAL_CONNECTIONS:
+            await websocket.close(code=1008, reason="Server connection limit reached")
+            logger.warning("WS rejected: global limit %d reached", settings.WS_MAX_TOTAL_CONNECTIONS)
+            return False
+
+        project_count = len(self._channels.get(project_id, set()))
+        if project_count >= settings.WS_MAX_CONNECTIONS_PER_PROJECT:
+            await websocket.close(code=1008, reason="Project connection limit reached")
+            logger.warning("WS rejected: project=%s limit %d reached", project_id, settings.WS_MAX_CONNECTIONS_PER_PROJECT)
+            return False
+
         await websocket.accept()
         if project_id not in self._channels:
             self._channels[project_id] = set()
         self._channels[project_id].add(websocket)
         logger.info(f"WS connect: project={project_id} total={len(self._channels[project_id])}")
+        return True
 
     def disconnect(self, project_id: str, websocket: WebSocket) -> None:
         channel = self._channels.get(project_id, set())
@@ -39,17 +55,21 @@ class ConnectionManager:
         logger.info(f"WS disconnect: project={project_id}")
 
     async def broadcast(self, project_id: str, message: dict) -> None:
-        """Send a message to all connected clients in a project channel."""
+        """Send a message to all connected clients with per-send timeout to drop dead connections."""
         channel = self._channels.get(project_id, set())
         if not channel:
             return
         dead: Set[WebSocket] = set()
         payload = json.dumps(message)
-        for ws in list(channel):
+        timeout = settings.WS_BROADCAST_TIMEOUT
+
+        async def _send(ws: WebSocket) -> None:
             try:
-                await ws.send_text(payload)
+                await asyncio.wait_for(ws.send_text(payload), timeout=timeout)
             except Exception:
                 dead.add(ws)
+
+        await asyncio.gather(*[_send(ws) for ws in list(channel)], return_exceptions=True)
         for ws in dead:
             self.disconnect(project_id, ws)
 
@@ -84,7 +104,9 @@ async def live_updates(websocket: WebSocket, project_id: str):
     Message types received from client:
     - ping: Client keep-alive (server responds with pong)
     """
-    await manager.connect(project_id, websocket)
+    accepted = await manager.connect(project_id, websocket)
+    if not accepted:
+        return
     try:
         # Send welcome message
         await websocket.send_json({

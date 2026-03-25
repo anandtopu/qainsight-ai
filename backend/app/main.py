@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.deps import get_current_active_user
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
+from app.db.redis_client import close_redis
 from app.routers import agents, analyze, analytics, auth, chat, integrations, live, metrics, notifications, projects, runs, search, webhooks, debug
 
 # ── Logging setup ─────────────────────────────────────────────
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await close_db()
     await close_mongo()
+    await close_redis()
     logger.info("QA Insight AI shutdown complete")
 
 
