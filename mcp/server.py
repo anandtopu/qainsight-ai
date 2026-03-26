@@ -92,6 +92,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.transport == "sse":
-        mcp.run(transport="sse", port=args.port)
+        # Configure host/port on the instance before running.
+        # FastMCP.run() no longer accepts port directly — it reads from settings.
+        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = args.port
+        mcp.run(transport="sse")
     else:
         mcp.run(transport="stdio")
