@@ -986,7 +986,7 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
                         <td className="td max-w-xs">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-slate-200 truncate">{tc.title}</span>
-                            {tc.ai_generated && <Sparkles className="h-3 w-3 text-purple-400 flex-shrink-0" title="AI generated" />}
+                            {tc.ai_generated && <Sparkles className="h-3 w-3 text-purple-400 flex-shrink-0" aria-label="AI generated" />}
                           </div>
                           {tc.feature_area && <span className="text-xs text-slate-500">{tc.feature_area}</span>}
                         </td>
@@ -1207,7 +1207,7 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
                       <div className="flex items-center gap-3 mb-1">
                         <h3 className="text-sm font-semibold text-slate-100 truncate">{plan.name}</h3>
                         <StatusPill status={plan.status} map={PLAN_STATUS_COLORS} />
-                        {plan.ai_generated && <Sparkles className="h-3.5 w-3.5 text-purple-400" title="AI generated" />}
+                        {plan.ai_generated && <Sparkles className="h-3.5 w-3.5 text-purple-400" aria-label="AI generated" />}
                       </div>
                       {plan.description && <p className="text-xs text-slate-400 mb-2 truncate">{plan.description}</p>}
                       <div className="space-y-1">

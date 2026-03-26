@@ -7,7 +7,7 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
@@ -22,7 +22,7 @@ from app.models.schemas import (
     TestCaseReviewResponse, TestCaseCommentCreate, TestCaseCommentResponse,
     TestPlanCreate, TestPlanUpdate, TestPlanResponse, TestPlanListResponse,
     TestPlanItemCreate, TestPlanItemResponse, ExecuteTestPlanItemRequest,
-    TestStrategyCreate, TestStrategyUpdate, TestStrategyResponse,
+    TestStrategyUpdate, TestStrategyResponse,
     AuditLogResponse, AuditLogListResponse,
     AIGenerateTestCasesRequest, AIGenerateTestCasesResponse,
     AIReviewTestCaseResponse, AICoverageAnalysisRequest, AICoverageAnalysisResponse,
@@ -809,6 +809,6 @@ async def get_audit_log(
     q = q.order_by(TestCaseAuditLog.created_at.desc()).offset((page - 1) * size).limit(size)
     result = await db.execute(q)
     return {
-        "items": [_row(l, AuditLogResponse) for l in result.scalars().all()],
+        "items": [_row(entry, AuditLogResponse) for entry in result.scalars().all()],
         "total": total, "page": page, "size": size, "pages": -(-total // size),
     }
