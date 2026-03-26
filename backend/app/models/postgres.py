@@ -580,3 +580,282 @@ class NotificationLog(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Test Case Management ──────────────────────────────────────────────────────
+
+class ManagedTestCase(Base):
+    """Manually authored or AI-generated test case with full lifecycle management."""
+    __tablename__ = "managed_test_cases"
+    __table_args__ = (
+        Index("ix_mtc_project_status", "project_id", "status"),
+        Index("ix_mtc_author", "author_id"),
+        Index("ix_mtc_fingerprint", "test_fingerprint"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+
+    # Core content
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    objective: Mapped[Optional[str]] = mapped_column(Text)          # What this test verifies
+    preconditions: Mapped[Optional[str]] = mapped_column(Text)
+    steps: Mapped[Optional[list]] = mapped_column(JSON)             # [{step_number, action, expected_result}]
+    expected_result: Mapped[Optional[str]] = mapped_column(Text)
+    test_data: Mapped[Optional[str]] = mapped_column(Text)          # Required test data / fixtures
+
+    # Classification
+    test_type: Mapped[str] = mapped_column(String(50), default="functional")  # unit|integration|e2e|performance|security|smoke|regression|functional
+    priority: Mapped[str] = mapped_column(String(20), default="medium")       # critical|high|medium|low
+    severity: Mapped[str] = mapped_column(String(20), default="major")        # blocker|critical|major|minor|trivial
+    feature_area: Mapped[Optional[str]] = mapped_column(String(500))
+    tags: Mapped[Optional[list]] = mapped_column(JSON)              # list[str]
+
+    # Lifecycle state machine
+    # draft → review_requested → under_review → approved → active → deprecated
+    # under_review → rejected → draft
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Attribution
+    author_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assignee_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewer_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Automation linkage
+    is_automated: Mapped[bool] = mapped_column(Boolean, default=False)
+    automation_status: Mapped[str] = mapped_column(String(30), default="not_automated")  # not_automated|in_progress|automated|broken
+    test_fingerprint: Mapped[Optional[str]] = mapped_column(String(64))  # Links to executed TestCase
+
+    # AI metadata
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_generation_prompt: Mapped[Optional[str]] = mapped_column(Text)
+    ai_quality_score: Mapped[Optional[int]] = mapped_column(Integer)    # 0-100
+    ai_review_notes: Mapped[Optional[dict]] = mapped_column(JSON)       # {issues, suggestions, score}
+
+    # Execution tracking
+    estimated_duration_minutes: Mapped[Optional[int]] = mapped_column(Integer)
+    last_executed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_execution_status: Mapped[Optional[str]] = mapped_column(String(20))  # PASSED|FAILED|BLOCKED
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class TestCaseVersion(Base):
+    """Immutable snapshot of a ManagedTestCase at each save."""
+    __tablename__ = "test_case_versions"
+    __table_args__ = (
+        Index("ix_tcv_test_case", "test_case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("managed_test_cases.id", ondelete="CASCADE"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Snapshot fields
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    steps: Mapped[Optional[list]] = mapped_column(JSON)
+    expected_result: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+
+    # Change metadata
+    changed_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    change_summary: Mapped[Optional[str]] = mapped_column(String(500))   # human label: "Updated steps 3-5"
+    change_type: Mapped[str] = mapped_column(String(30), default="updated")  # created|updated|status_changed|approved|deprecated
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TestCaseReview(Base):
+    """Review cycle for a ManagedTestCase."""
+    __tablename__ = "test_case_reviews"
+    __table_args__ = (
+        Index("ix_tcr_test_case", "test_case_id"),
+        Index("ix_tcr_reviewer", "reviewer_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("managed_test_cases.id", ondelete="CASCADE"), nullable=False)
+    reviewer_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    requested_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Status: pending|in_progress|approved|rejected|changes_requested
+    status: Mapped[str] = mapped_column(String(30), default="pending")
+
+    # AI review output
+    ai_review_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_quality_score: Mapped[Optional[int]] = mapped_column(Integer)
+    ai_review_notes: Mapped[Optional[dict]] = mapped_column(JSON)    # {coverage_gaps, issues, suggestions, score_breakdown}
+    ai_reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Human review
+    human_notes: Mapped[Optional[str]] = mapped_column(Text)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class TestCaseComment(Base):
+    """Threaded comment on a ManagedTestCase."""
+    __tablename__ = "test_case_comments"
+    __table_args__ = (
+        Index("ix_tcc_test_case", "test_case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("managed_test_cases.id", ondelete="CASCADE"), nullable=False)
+    author_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    comment_type: Mapped[str] = mapped_column(String(30), default="general")  # general|review|suggestion|question
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("test_case_comments.id", ondelete="SET NULL"), nullable=True)
+    step_number: Mapped[Optional[int]] = mapped_column(Integer)     # Optional: anchors comment to a step
+    is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class TestPlan(Base):
+    """Named collection of test cases forming an executable test plan."""
+    __tablename__ = "test_plans"
+    __table_args__ = (
+        Index("ix_tp_project", "project_id"),
+        Index("ix_tp_status", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    objective: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Status: draft|active|in_progress|completed|archived
+    status: Mapped[str] = mapped_column(String(30), default="draft")
+
+    # Schedule
+    planned_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    planned_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    actual_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    actual_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Attribution
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_to_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_generation_context: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Aggregates (denormalized for fast reads)
+    total_cases: Mapped[int] = mapped_column(Integer, default=0)
+    executed_cases: Mapped[int] = mapped_column(Integer, default=0)
+    passed_cases: Mapped[int] = mapped_column(Integer, default=0)
+    failed_cases: Mapped[int] = mapped_column(Integer, default=0)
+    blocked_cases: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class TestPlanItem(Base):
+    """A test case entry within a TestPlan."""
+    __tablename__ = "test_plan_items"
+    __table_args__ = (
+        Index("ix_tpi_plan", "plan_id"),
+        UniqueConstraint("plan_id", "test_case_id", name="uq_plan_test_case"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_plans.id", ondelete="CASCADE"), nullable=False)
+    test_case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("managed_test_cases.id", ondelete="CASCADE"), nullable=False)
+
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    priority_override: Mapped[Optional[str]] = mapped_column(String(20))  # overrides test case priority
+
+    # Execution tracking
+    # not_run|in_progress|passed|failed|blocked|skipped
+    execution_status: Mapped[str] = mapped_column(String(30), default="not_run")
+    executed_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    executed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    execution_notes: Mapped[Optional[str]] = mapped_column(Text)
+    actual_duration_minutes: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Optional link to an actual automated test run result
+    test_case_result_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("test_cases.id", ondelete="SET NULL"), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TestStrategy(Base):
+    """AI-generated or manually authored test strategy document for a project."""
+    __tablename__ = "test_strategies"
+    __table_args__ = (
+        Index("ix_ts_project", "project_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    version_label: Mapped[str] = mapped_column(String(50), default="v1.0")
+    status: Mapped[str] = mapped_column(String(30), default="draft")   # draft|active|archived
+
+    # Strategy document sections
+    objective: Mapped[Optional[str]] = mapped_column(Text)
+    scope: Mapped[Optional[str]] = mapped_column(Text)
+    out_of_scope: Mapped[Optional[str]] = mapped_column(Text)
+    test_approach: Mapped[Optional[str]] = mapped_column(Text)
+    risk_assessment: Mapped[Optional[list]] = mapped_column(JSON)      # [{risk, likelihood, impact, mitigation}]
+    test_types: Mapped[Optional[list]] = mapped_column(JSON)           # [{type, priority, tools, coverage_target_pct}]
+    entry_criteria: Mapped[Optional[list]] = mapped_column(JSON)       # list[str]
+    exit_criteria: Mapped[Optional[list]] = mapped_column(JSON)        # list[str]
+    environments: Mapped[Optional[list]] = mapped_column(JSON)         # [{name, type, purpose}]
+    automation_approach: Mapped[Optional[str]] = mapped_column(Text)
+    defect_management: Mapped[Optional[str]] = mapped_column(Text)
+
+    # AI Generation metadata
+    ai_generated: Mapped[bool] = mapped_column(Boolean, default=True)
+    generation_context: Mapped[Optional[str]] = mapped_column(Text)    # prompt / requirements text used
+    ai_model_used: Mapped[Optional[str]] = mapped_column(String(100))
+
+    # Attribution
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class TestCaseAuditLog(Base):
+    """Immutable compliance audit trail for all test management actions."""
+    __tablename__ = "test_case_audit_logs"
+    __table_args__ = (
+        Index("ix_tcal_entity", "entity_type", "entity_id"),
+        Index("ix_tcal_project_created", "project_id", "created_at"),
+        Index("ix_tcal_actor", "actor_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entity_type: Mapped[str] = mapped_column(String(30), nullable=False)   # test_case|test_plan|test_strategy|review
+    entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    project_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+
+    # Action type
+    action: Mapped[str] = mapped_column(String(50), nullable=False)        # created|updated|status_changed|reviewed|approved|rejected|deleted|assigned|executed|ai_generated|ai_reviewed
+
+    # Actor (snapshot name in case user is deleted)
+    actor_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_name: Mapped[Optional[str]] = mapped_column(String(200))
+
+    # Change payload
+    old_values: Mapped[Optional[dict]] = mapped_column(JSON)
+    new_values: Mapped[Optional[dict]] = mapped_column(JSON)
+    details: Mapped[Optional[str]] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle, CheckCircle, Shield, XCircle, Zap,
 } from 'lucide-react'
@@ -10,6 +10,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import EmptyState from '@/components/ui/EmptyState'
 import { useReleaseDecision } from '@/hooks/useDeepInvestigation'
 import { deepInvestigationService } from '@/services/deepInvestigationService'
+import { useRuns } from '@/hooks/useRuns'
 
 type Recommendation = 'GO' | 'NO_GO' | 'CONDITIONAL_GO'
 
@@ -45,11 +46,19 @@ function RiskGauge({ score }: { score: number }) {
 
 export default function ReleaseGatePage() {
   const { runId } = useParams<{ runId: string }>()
+  const navigate = useNavigate()
   const { data: decision, isLoading, error, mutate } = useReleaseDecision(runId ?? null)
   const [overrideMode, setOverrideMode] = useState(false)
   const [overrideRec, setOverrideRec] = useState<Recommendation>('GO')
   const [overrideReason, setOverrideReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const { data: recentRuns } = useRuns({ page: 1, size: 1 })
+  useEffect(() => {
+    if (!runId && recentRuns?.items?.[0]?.id) {
+      navigate(`/release-gate/${recentRuns.items[0].id}`, { replace: true })
+    }
+  }, [runId, recentRuns, navigate])
 
   if (!runId) {
     return (

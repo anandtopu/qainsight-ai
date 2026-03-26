@@ -35,6 +35,7 @@ from app.routers import (
     release_readiness,
     runs,
     search,
+    test_management,
     webhooks,
 )
 from app.routers.health import router as health_router
@@ -178,6 +179,7 @@ app.include_router(chat.router, dependencies=protected_deps)
 app.include_router(feedback.router, dependencies=protected_deps)
 app.include_router(deep_investigation.router, dependencies=protected_deps)
 app.include_router(release_readiness.router, dependencies=protected_deps)
+app.include_router(test_management.router, dependencies=protected_deps)
 
 # Observability — public (no JWT required: browser fires-and-forgets)
 app.include_router(observability_router)

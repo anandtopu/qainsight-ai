@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle, Bot, ChevronDown, ChevronRight, GitBranch,
   Layers, Search, Shield, Zap,
@@ -11,6 +11,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import EmptyState from '@/components/ui/EmptyState'
 import { useFailureClusters, useDeepFindings } from '@/hooks/useDeepInvestigation'
 import { deepInvestigationService, FailureCluster, DeepFinding } from '@/services/deepInvestigationService'
+import { useRuns } from '@/hooks/useRuns'
 
 const CATEGORY_COLOUR: Record<string, string> = {
   PRODUCT_BUG:      'text-red-400',
@@ -214,8 +215,16 @@ function FindingPanel({ finding }: { finding: DeepFinding | undefined }) {
 
 export default function DeepInvestigationPage() {
   const { runId } = useParams<{ runId: string }>()
+  const navigate = useNavigate()
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null)
   const [triggering, setTriggering] = useState(false)
+
+  const { data: recentRuns } = useRuns({ page: 1, size: 1 })
+  useEffect(() => {
+    if (!runId && recentRuns?.items?.[0]?.id) {
+      navigate(`/deep-investigate/${recentRuns.items[0].id}`, { replace: true })
+    }
+  }, [runId, recentRuns, navigate])
 
   const { data: clusters = [], isLoading: clustersLoading, mutate: mutateClusters } = useFailureClusters(runId ?? null)
   const { data: findings = [], isLoading: findingsLoading, mutate: mutateFindings } = useDeepFindings(runId ?? null)

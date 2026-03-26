@@ -23,6 +23,7 @@ const ChatPage                  = lazy(() => import('@/pages/ChatPage'))
 const AgentStatusPage           = lazy(() => import('@/pages/AgentStatusPage'))
 const DeepInvestigationPage     = lazy(() => import('@/pages/DeepInvestigationPage'))
 const ReleaseGatePage           = lazy(() => import('@/pages/ReleaseGatePage'))
+const TestManagementPage        = lazy(() => import('@/pages/TestManagementPage'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-64">
@@ -94,6 +95,9 @@ export default function App() {
           } />
           <Route path="release-gate/:runId" element={
             <Suspense fallback={<Fallback />}><ReleaseGatePage /></Suspense>
+          } />
+          <Route path="test-management" element={
+            <Suspense fallback={<Fallback />}><TestManagementPage /></Suspense>
           } />
         </Route>
       </Route>

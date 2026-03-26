@@ -350,6 +350,27 @@ async def seed_db(project_map: dict[str, str]):
         if RESET:
             print("   Wiping previous seed data…")
             await db.execute(text("""
+                DELETE FROM deep_findings WHERE test_run_id IN (
+                    SELECT tr.id FROM test_runs tr
+                    JOIN projects p ON tr.project_id = p.id
+                    WHERE p.slug IN ('payment-service','auth-service','inventory-service')
+                )
+            """))
+            await db.execute(text("""
+                DELETE FROM failure_clusters WHERE test_run_id IN (
+                    SELECT tr.id FROM test_runs tr
+                    JOIN projects p ON tr.project_id = p.id
+                    WHERE p.slug IN ('payment-service','auth-service','inventory-service')
+                )
+            """))
+            await db.execute(text("""
+                DELETE FROM release_decisions WHERE test_run_id IN (
+                    SELECT tr.id FROM test_runs tr
+                    JOIN projects p ON tr.project_id = p.id
+                    WHERE p.slug IN ('payment-service','auth-service','inventory-service')
+                )
+            """))
+            await db.execute(text("""
                 DELETE FROM agent_stage_results WHERE pipeline_run_id IN (
                     SELECT apr.id FROM agent_pipeline_runs apr
                     JOIN test_runs tr ON apr.test_run_id = tr.id
@@ -416,6 +437,14 @@ async def seed_db(project_map: dict[str, str]):
 
         print("   Seeding agent pipeline runs…")
         await _seed_pipeline_runs(db, all_run_ids)
+        await db.commit()
+
+        print("   Seeding failure clusters + deep findings…")
+        await _seed_failure_clusters_and_findings(db, all_run_ids)
+        await db.commit()
+
+        print("   Seeding release decisions…")
+        await _seed_release_decisions(db, all_run_ids)
         await db.commit()
     await engine.dispose()
 
@@ -692,6 +721,237 @@ async def _seed_pipeline_runs(
                     "result_data": json.dumps(result_data) if result_data else None,
                     "error": stage_error,
                 })
+
+
+CLUSTER_TEMPLATES = [
+    {
+        "cluster_id": "cl_001",
+        "label": "Gateway / external API connectivity failures",
+        "representative_error": "feign.RetryableException: Connection refused to payment-gateway:8443 after 3 retries",
+        "root_cause": (
+            "Multiple tests are failing due to TCP connection pool exhaustion on the payment-gateway service. "
+            "The default pool size of 10 is insufficient at peak load (~80 req/s). "
+            "All affected tests share the GatewayClient bean — pool contention cascades across the suite."
+        ),
+        "failure_category": "INFRASTRUCTURE",
+        "causal_chain": [
+            {"step": 1, "service": "payment-gateway", "finding": "Connection pool exhausted — 10/10 slots occupied"},
+            {"step": 2, "service": "test-runner",      "finding": "New test threads cannot acquire connections"},
+            {"step": 3, "service": "feign-client",     "finding": "RetryableException thrown after 3 retries"},
+        ],
+        "affected_services": ["payment-gateway", "stripe-adapter", "braintree-adapter"],
+        "recommended_actions": [
+            "Increase GatewayClient pool size to 50 in GatewayConfig.java",
+            "Add Resilience4j circuit breaker with 5-second timeout",
+            "Monitor gateway pool saturation via Prometheus `hikari.connections.active` metric",
+        ],
+    },
+    {
+        "cluster_id": "cl_002",
+        "label": "Flaky timing / race condition failures",
+        "representative_error": "org.awaitility.core.ConditionTimeoutException: Condition not fulfilled within 5 seconds",
+        "root_cause": (
+            "Tests share mutable state between runs due to missing test isolation. "
+            "Parallel test execution causes race conditions in setup/teardown hooks. "
+            "The flakiness rate of 40-60% is consistent with a timing-sensitive shared resource."
+        ),
+        "failure_category": "FLAKY",
+        "causal_chain": [
+            {"step": 1, "service": "test-framework",  "finding": "Parallel threads share @BeforeAll static state"},
+            {"step": 2, "service": "test-database",   "finding": "Leftover rows from previous test pollute assertions"},
+            {"step": 3, "service": "awaitility",      "finding": "Condition timeout after 5s because state is inconsistent"},
+        ],
+        "affected_services": ["test-database", "mfa-service", "session-store"],
+        "recommended_actions": [
+            "Add @DirtiesContext or @Transactional rollback to each flaky test class",
+            "Replace shared @BeforeAll setup with per-test @BeforeEach isolation",
+            "Use TestContainers for a fresh DB per test class instead of shared schema",
+        ],
+    },
+    {
+        "cluster_id": "cl_003",
+        "label": "Authentication / token validation failures",
+        "representative_error": "AssertionError: JWT claim 'sub' mismatch — token issued for user-123 but request bears user-456",
+        "root_cause": (
+            "Token validation failures stem from a shared JWT signing key being rotated mid-suite. "
+            "Tests that cache the token at @BeforeAll time receive an invalidated key after rotation. "
+            "This surfaces as assertion failures rather than 401 errors because the exception is swallowed."
+        ),
+        "failure_category": "PRODUCT_BUG",
+        "causal_chain": [
+            {"step": 1, "service": "auth-service",  "finding": "JWT signing key rotated at 09:00 UTC daily"},
+            {"step": 2, "service": "test-setup",    "finding": "Cached token from @BeforeAll signed with old key"},
+            {"step": 3, "service": "api-gateway",   "finding": "Token accepted but subject claim decodes incorrectly"},
+        ],
+        "affected_services": ["auth-service", "api-gateway", "user-service"],
+        "recommended_actions": [
+            "Refresh auth tokens inside each @Test rather than caching at class level",
+            "Add clock skew tolerance of 60s to JWT validator",
+            "Align key rotation schedule to outside test execution windows",
+        ],
+    },
+]
+
+
+async def _seed_failure_clusters_and_findings(
+    db: AsyncSession,
+    all_run_ids: dict[str, list[tuple[str, datetime, str]]],
+) -> None:
+    """Create FailureCluster + DeepFinding records for recent failed/mixed runs."""
+    for slug, run_meta in all_run_ids.items():
+        # Use the most recent 6 runs (last 6 of 12)
+        for run_id, run_time, run_status in run_meta[6:]:
+            # Only create clusters for runs with failures (FAILED), or occasionally PASSED runs
+            if run_status == "PASSED" and rng.random() > 0.3:
+                continue
+
+            # Pick 1-2 clusters per run
+            num_clusters = rng.randint(1, 2)
+            chosen = rng.sample(CLUSTER_TEMPLATES, num_clusters)
+
+            for tpl in chosen:
+                cluster_row_id = str(uuid.uuid4())
+                # Grab 2-3 failed test case IDs from this run for member_test_ids
+                r = await db.execute(text("""
+                    SELECT id FROM test_cases
+                    WHERE test_run_id = :run_id
+                      AND status IN ('FAILED', 'BROKEN')
+                    LIMIT 3
+                """), {"run_id": run_id})
+                member_ids = [str(row[0]) for row in r.fetchall()]
+                cluster_size = max(1, len(member_ids))
+
+                await db.execute(text("""
+                    INSERT INTO failure_clusters (
+                        id, test_run_id, cluster_id, label,
+                        representative_error, member_test_ids, size, cohesion_score, created_at
+                    ) VALUES (
+                        :id, :run_id, :cluster_id, :label,
+                        :repr_error, :member_ids, :size, :cohesion, :created_at
+                    ) ON CONFLICT DO NOTHING
+                """), {
+                    "id": cluster_row_id,
+                    "run_id": run_id,
+                    "cluster_id": tpl["cluster_id"],
+                    "label": tpl["label"],
+                    "repr_error": tpl["representative_error"],
+                    "member_ids": json.dumps(member_ids),
+                    "size": cluster_size,
+                    "cohesion": round(rng.uniform(0.65, 0.95), 2),
+                    "created_at": run_time + timedelta(seconds=rng.randint(30, 120)),
+                })
+
+                confidence = rng.randint(78, 96)
+                await db.execute(text("""
+                    INSERT INTO deep_findings (
+                        id, test_run_id, cluster_id, root_cause,
+                        failure_category, confidence_score,
+                        causal_chain, evidence, affected_services,
+                        contract_violations, recommended_actions, created_at
+                    ) VALUES (
+                        :id, :run_id, :cluster_id, :root_cause,
+                        :category, :confidence,
+                        :causal_chain, :evidence, :affected_services,
+                        :contract_violations, :recommended_actions, :created_at
+                    ) ON CONFLICT DO NOTHING
+                """), {
+                    "id": str(uuid.uuid4()),
+                    "run_id": run_id,
+                    "cluster_id": tpl["cluster_id"],
+                    "root_cause": tpl["root_cause"],
+                    "category": tpl["failure_category"],
+                    "confidence": confidence,
+                    "causal_chain": json.dumps(tpl["causal_chain"]),
+                    "evidence": json.dumps([
+                        {"source": "stacktrace", "excerpt": tpl["representative_error"][:120]},
+                        {"source": "history",    "excerpt": f"Failure rate consistent over last 14 days"},
+                    ]),
+                    "affected_services": json.dumps(tpl["affected_services"]),
+                    "contract_violations": json.dumps([]),
+                    "recommended_actions": json.dumps(tpl["recommended_actions"]),
+                    "created_at": run_time + timedelta(seconds=rng.randint(60, 180)),
+                })
+
+
+async def _seed_release_decisions(
+    db: AsyncSession,
+    all_run_ids: dict[str, list[tuple[str, datetime, str]]],
+) -> None:
+    """Create one ReleaseDecision per recent run based on its pass/fail outcome."""
+    for slug, run_meta in all_run_ids.items():
+        # Use the most recent 8 runs
+        for run_id, run_time, run_status in run_meta[4:]:
+            # Fetch actual pass_rate from DB for realistic recommendation
+            r = await db.execute(text(
+                "SELECT pass_rate, failed_tests FROM test_runs WHERE id = :run_id"
+            ), {"run_id": run_id})
+            row = r.fetchone()
+            if not row:
+                continue
+            pass_rate, failed_count = float(row[0] or 0), int(row[1] or 0)
+
+            if pass_rate >= 95 and failed_count == 0:
+                recommendation = "GO"
+                risk_score = rng.randint(5, 20)
+                blocking_issues: list = []
+                conditions: list = []
+                reasoning = (
+                    f"All {15} tests passed with a {pass_rate:.1f}% pass rate. "
+                    "No blocking issues detected. Pipeline completed successfully. "
+                    "Recommend proceeding to production deployment."
+                )
+            elif pass_rate >= 80:
+                recommendation = "CONDITIONAL_GO"
+                risk_score = rng.randint(35, 55)
+                blocking_issues = []
+                conditions = [
+                    f"Confirm {failed_count} failing test(s) are pre-existing known flaky tests",
+                    "QA Lead sign-off required before production deploy",
+                    "Monitor error rate in staging for 30 minutes post-deploy",
+                ]
+                reasoning = (
+                    f"Pass rate of {pass_rate:.1f}% is acceptable but {failed_count} test(s) failed. "
+                    "Failures appear to be infrastructure or flakiness related rather than regression. "
+                    "Conditional approval granted pending QA lead review."
+                )
+            else:
+                recommendation = "NO_GO"
+                risk_score = rng.randint(65, 90)
+                blocking_issues = [
+                    f"{failed_count} test(s) failing — exceeds 20% failure threshold",
+                    "Critical suite pass rate below 80% — release blocked",
+                ]
+                conditions = [
+                    "Fix all CRITICAL and BLOCKER severity test failures",
+                    "Rerun full regression suite and achieve ≥ 90% pass rate",
+                ]
+                reasoning = (
+                    f"Pass rate of {pass_rate:.1f}% is below the 80% release threshold. "
+                    f"{failed_count} test(s) failed, including potential regressions in critical paths. "
+                    "Release is blocked. Investigate and resolve failures before re-running the gate."
+                )
+
+            await db.execute(text("""
+                INSERT INTO release_decisions (
+                    id, test_run_id, recommendation, risk_score,
+                    blocking_issues, conditions_for_go, reasoning,
+                    created_at, updated_at
+                ) VALUES (
+                    :id, :run_id, :recommendation, :risk_score,
+                    :blocking_issues, :conditions, :reasoning,
+                    :created_at, :updated_at
+                ) ON CONFLICT (test_run_id) DO NOTHING
+            """), {
+                "id": str(uuid.uuid4()),
+                "run_id": run_id,
+                "recommendation": recommendation,
+                "risk_score": risk_score,
+                "blocking_issues": json.dumps(blocking_issues),
+                "conditions": json.dumps(conditions),
+                "reasoning": reasoning,
+                "created_at": run_time + timedelta(seconds=rng.randint(180, 300)),
+                "updated_at": run_time + timedelta(seconds=rng.randint(180, 300)),
+            })
 
 
 async def _seed_defects(db: AsyncSession, project_map: dict):
@@ -984,6 +1244,8 @@ def main():
     print("    • AI analysis summaries              (root-cause + recommendations)")
     print("    • Agent pipeline runs                (8 runs × 3 projects = 24 pipelines)")
     print("    • Agent stage results                (9 stages per pipeline, mixed statuses)")
+    print("    • Failure clusters + deep findings   (1-2 clusters per recent run)")
+    print("    • Release gate decisions             (GO/NO_GO/CONDITIONAL per recent run)")
     print("    • Live agent pipeline runs           (triggered now — check worker logs)")
     print()
     print("  Open dashboard:  http://localhost:3000")

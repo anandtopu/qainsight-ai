@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  BarChart3, Bot, Bug, FlaskConical, Gauge, GitBranch,
+  BarChart3, Bot, Bug, ClipboardList, FlaskConical, Gauge, GitBranch,
   Layers, LayoutDashboard, MessageSquare, Search, Settings, ShieldCheck, Shield, TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -13,7 +13,8 @@ const NAV = [
   { to: '/trends',    icon: TrendingUp,      label: 'Trends'     },
   { to: '/defects',   icon: Gauge,           label: 'Defects'    },
   { to: '/search',    icon: Search,          label: 'Search'     },
-  { to: '/projects',  icon: FlaskConical,    label: 'Projects'   },
+  { to: '/projects',       icon: FlaskConical,    label: 'Projects'   },
+  { to: '/test-management', icon: ClipboardList,  label: 'Test Cases' },
 ]
 
 const AI_NAV = [
@@ -34,7 +35,7 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="text-sm font-bold text-slate-100">QA Insight AI</p>
-            <p className="text-[10px] text-slate-500">v3.0</p>
+            <p className="text-[10px] text-slate-500">v0.0.1</p>
           </div>
         </div>
       </div>

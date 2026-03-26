@@ -16,6 +16,8 @@ interface AuthState {
   refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   setAuth: (token: string, refreshToken: string, user: User) => void;
   logout: () => void;
   fetchUser: () => Promise<void>;
@@ -29,6 +31,9 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       user: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       setAuth: (token, refreshToken, user) =>
         set({ token, refreshToken, user, isAuthenticated: true }),
@@ -70,12 +75,13 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      // Persist both tokens; access token has short TTL so we need refresh token
-      // to survive page reloads without forcing re-login every 15 minutes.
       partialize: (state) => ({
         token: state.token,
         refreshToken: state.refreshToken,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
