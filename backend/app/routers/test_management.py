@@ -27,6 +27,7 @@ from app.models.schemas import (
     AIGenerateTestCasesRequest, AIGenerateTestCasesResponse,
     AIReviewTestCaseResponse, AICoverageAnalysisRequest, AICoverageAnalysisResponse,
     AIGenerateStrategyRequest, AIOptimizePlanRequest,
+    AITaskEnqueueResponse, AITaskStatusResponse,
     ReviewActionRequest,
 )
 
@@ -428,6 +429,47 @@ async def ai_generate_cases(
     }
 
 
+@router.post("/cases/ai-generate/async", response_model=AITaskEnqueueResponse)
+async def ai_generate_cases_async(
+    payload: AIGenerateTestCasesRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Enqueue AI test case generation as a background Celery task.
+    Returns immediately — no HTTP timeout possible."""
+    try:
+        from app.worker.tasks import generate_ai_test_cases_task
+        task = generate_ai_test_cases_task.delay(
+            payload.requirements,
+            str(payload.project_id),
+            str(current_user.id),
+        )
+        return {"task_id": task.id, "status": "queued"}
+    except Exception as exc:
+        logger.error("Failed to enqueue generate_ai_test_cases_task: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI task queue unavailable. Check that the Celery worker and Redis are running.",
+        )
+
+
+@router.get("/cases/ai-task/{task_id}", response_model=AITaskStatusResponse)
+async def get_ai_task_status(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Poll the status of a background AI generation task.
+    Status values: pending | success | failure"""
+    from celery.result import AsyncResult
+    from app.worker.celery_app import celery_app as _celery_app
+    res = AsyncResult(task_id, app=_celery_app)
+    if res.state == "SUCCESS":
+        return {"task_id": task_id, "status": "success", "result": res.result}
+    if res.state in ("FAILURE", "REVOKED"):
+        return {"task_id": task_id, "status": "failure", "error": str(res.info)}
+    # PENDING, STARTED, RETRY → still running
+    return {"task_id": task_id, "status": "pending"}
+
+
 @router.post("/cases/{case_id}/ai-review", response_model=AIReviewTestCaseResponse)
 async def ai_review_case(
     case_id: uuid.UUID,
@@ -702,6 +744,30 @@ async def ai_create_plan(
     return _row(plan, TestPlanResponse)
 
 
+@router.post("/plans/ai-create/async", response_model=AITaskEnqueueResponse)
+async def ai_create_plan_async(
+    payload: AIOptimizePlanRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Enqueue AI test plan creation as a background Celery task.
+    Returns immediately — no HTTP timeout possible."""
+    try:
+        from app.worker.tasks import create_ai_test_plan_task
+        task = create_ai_test_plan_task.delay(
+            str(payload.project_id),
+            str(current_user.id),
+            payload.plan_name,
+            payload.constraints,
+        )
+        return {"task_id": task.id, "status": "queued"}
+    except Exception as exc:
+        logger.error("Failed to enqueue create_ai_test_plan_task: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI task queue unavailable. Check that the Celery worker and Redis are running.",
+        )
+
+
 # ── Test Strategies ───────────────────────────────────────────────────────────
 
 @router.get("/strategies", response_model=list[TestStrategyResponse])
@@ -754,6 +820,30 @@ async def ai_generate_strategy(
     await db.commit()
     await db.refresh(strategy)
     return _row(strategy, TestStrategyResponse)
+
+
+@router.post("/strategies/ai-generate/async", response_model=AITaskEnqueueResponse)
+async def ai_generate_strategy_async(
+    payload: AIGenerateStrategyRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Enqueue AI strategy generation as a background Celery task.
+    Returns immediately — no HTTP timeout possible."""
+    try:
+        from app.worker.tasks import generate_ai_strategy_task
+        task = generate_ai_strategy_task.delay(
+            str(payload.project_id),
+            str(current_user.id),
+            payload.project_context,
+            payload.strategy_name,
+        )
+        return {"task_id": task.id, "status": "queued"}
+    except Exception as exc:
+        logger.error("Failed to enqueue generate_ai_strategy_task: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI task queue unavailable. Check that the Celery worker and Redis are running.",
+        )
 
 
 @router.get("/strategies/{strategy_id}", response_model=TestStrategyResponse)

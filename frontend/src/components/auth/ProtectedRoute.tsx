@@ -9,11 +9,15 @@ export default function ProtectedRoute() {
   const token = useAuthStore((s) => s.token);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const location = useLocation();
-  const [validating, setValidating] = useState(false);
+
+  // Pre-initialise to true when a token exists but isAuthenticated hasn't been
+  // restored yet (page-refresh scenario).  This prevents the first render from
+  // immediately redirecting to /login before fetchUser() has a chance to run.
+  const [validating, setValidating] = useState(
+    () => !!useAuthStore.getState().token && !useAuthStore.getState().isAuthenticated,
+  );
 
   useEffect(() => {
-    // Once the persist store has hydrated, if a token exists but the session
-    // flag was not persisted (page refresh), re-validate the token silently.
     if (hasHydrated && token && !isAuthenticated) {
       setValidating(true);
       fetchUser().finally(() => setValidating(false));
@@ -21,7 +25,6 @@ export default function ProtectedRoute() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated]);
 
-  // Still loading localStorage — show nothing so there's no redirect flash.
   if (!hasHydrated || validating) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">

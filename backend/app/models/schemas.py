@@ -757,7 +757,7 @@ class AuditLogListResponse(BaseModel):
 
 class AIGenerateTestCasesRequest(BaseModel):
     project_id: uuid.UUID
-    requirements: str = Field(..., min_length=20)
+    requirements: str = Field(..., min_length=3)
     persist: bool = False  # if True, save generated cases as DRAFT
 
 
@@ -783,7 +783,7 @@ class AIReviewTestCaseResponse(BaseModel):
 
 class AICoverageAnalysisRequest(BaseModel):
     project_id: uuid.UUID
-    requirements: str = Field(..., min_length=20)
+    requirements: str = Field(..., min_length=3)
 
 
 class AICoverageAnalysisResponse(BaseModel):
@@ -799,7 +799,7 @@ class AICoverageAnalysisResponse(BaseModel):
 
 class AIGenerateStrategyRequest(BaseModel):
     project_id: uuid.UUID
-    project_context: str = Field(..., min_length=20)
+    project_context: str = Field(..., min_length=3)
     strategy_name: Optional[str] = None
 
 
@@ -817,4 +817,16 @@ class AIOptimizePlanResponse(BaseModel):
     parallel_groups: Optional[List[Any]] = None
     risk_areas_first: Optional[bool] = None
     optimization_notes: Optional[str] = None
+    error: Optional[str] = None
+
+
+class AITaskEnqueueResponse(BaseModel):
+    task_id: str
+    status: str = "queued"
+
+
+class AITaskStatusResponse(BaseModel):
+    task_id: str
+    status: str  # pending | success | failure
+    result: Optional[dict] = None
     error: Optional[str] = None

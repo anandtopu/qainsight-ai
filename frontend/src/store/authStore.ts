@@ -47,8 +47,14 @@ export const useAuthStore = create<AuthState>()(
         try {
           const res = await api.get<User>('/api/v1/auth/me');
           set({ user: res.data, isAuthenticated: true });
-        } catch {
-          logout();
+        } catch (err) {
+          // Only clear auth on actual auth failures (401/403).
+          // Network errors or server unavailability (5xx, timeout) should not
+          // log the user out — they may just be a transient connectivity issue.
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (!status || status === 401 || status === 403) {
+            logout();
+          }
         }
       },
 

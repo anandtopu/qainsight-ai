@@ -272,6 +272,12 @@ export const testManagementService = {
   aiGenerate: (data: { project_id: string; requirements: string; persist: boolean }): Promise<AIGenerateResponse> =>
     api.post('/api/v1/test-management/cases/ai-generate', data).then(r => r.data),
 
+  aiGenerateAsync: (data: { project_id: string; requirements: string; persist: boolean }): Promise<{ task_id: string; status: string }> =>
+    api.post('/api/v1/test-management/cases/ai-generate/async', data).then(r => r.data),
+
+  aiTaskStatus: (taskId: string): Promise<{ task_id: string; status: string; result?: AIGenerateResponse; error?: string }> =>
+    api.get(`/api/v1/test-management/cases/ai-task/${taskId}`).then(r => r.data),
+
   aiReview: (id: string): Promise<AIReviewResult> =>
     api.post(`/api/v1/test-management/cases/${id}/ai-review`).then(r => r.data),
 
@@ -306,6 +312,9 @@ export const testManagementService = {
   aiCreatePlan: (data: { project_id: string; plan_name?: string; constraints?: string }): Promise<TestPlan> =>
     api.post('/api/v1/test-management/plans/ai-create', data).then(r => r.data),
 
+  aiCreatePlanAsync: (data: { project_id: string; plan_name?: string; constraints?: string }): Promise<{ task_id: string; status: string }> =>
+    api.post('/api/v1/test-management/plans/ai-create/async', data).then(r => r.data),
+
   // Strategies
   listStrategies: (projectId: string): Promise<TestStrategy[]> =>
     api.get('/api/v1/test-management/strategies', { params: { project_id: projectId } }).then(r => r.data),
@@ -318,6 +327,9 @@ export const testManagementService = {
 
   aiGenerateStrategy: (data: { project_id: string; project_context: string; strategy_name?: string }): Promise<TestStrategy> =>
     api.post('/api/v1/test-management/strategies/ai-generate', data).then(r => r.data),
+
+  aiGenerateStrategyAsync: (data: { project_id: string; project_context: string; strategy_name?: string }): Promise<{ task_id: string; status: string }> =>
+    api.post('/api/v1/test-management/strategies/ai-generate/async', data).then(r => r.data),
 
   // Audit Log
   getAuditLog: (projectId: string, params?: { entity_type?: string; action?: string; page?: number; size?: number }): Promise<PaginatedResponse<AuditLogEntry>> =>

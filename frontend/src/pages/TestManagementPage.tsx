@@ -254,107 +254,57 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
 
 // ── AI Generate Modal ─────────────────────────────────────────────────────────
 
-interface AIGenerateModalProps { projectId: string; onClose: () => void; onCreated: () => void }
+interface AIGenerateModalProps { projectId: string; onClose: () => void }
 
-function AIGenerateModal({ projectId, onClose, onCreated }: AIGenerateModalProps) {
+function AIGenerateModal({ projectId, onClose }: AIGenerateModalProps) {
   const [requirements, setRequirements] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ test_cases: Partial<ManagedTestCase>[]; coverage_summary?: string; gaps_noted: string[]; created_ids: string[] } | null>(null)
-  const [saving, setSaving] = useState(false)
 
   const handleGenerate = async () => {
-    if (!requirements.trim()) { toast.error('Requirements text is required'); return }
+    if (requirements.trim().length < 3) { toast.error('Please enter at least 3 characters'); return }
     setLoading(true)
     try {
-      const res = await testManagementService.aiGenerate({ project_id: projectId, requirements: requirements.trim(), persist: false })
-      setResult(res)
+      await testManagementService.aiGenerateAsync({
+        project_id: projectId,
+        requirements: requirements.trim(),
+        persist: true,
+      })
+      toast.success(
+        'Test cases are being generated in the background and will be saved as drafts — refresh the list in a moment.',
+        { duration: 7000 }
+      )
+      onClose()
     } catch {
-      toast.error('AI generation failed')
-    } finally {
+      toast.error('Failed to start AI generation')
       setLoading(false)
     }
   }
 
-  const handleSaveAll = async () => {
-    if (!result) return
-    setSaving(true)
-    try {
-      await testManagementService.aiGenerate({ project_id: projectId, requirements: requirements.trim(), persist: true })
-      toast.success(`${result.test_cases.length} test cases saved as drafts`)
-      onCreated()
-      onClose()
-    } catch {
-      toast.error('Failed to save test cases')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
-    <ModalWrap onClose={onClose} title="AI Generate Test Cases" width="max-w-3xl">
+    <ModalWrap onClose={onClose} title="AI Generate Test Cases" width="max-w-2xl">
       <div className="space-y-4">
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Requirements / Feature Description</label>
-          <textarea
-            className="input w-full h-36 resize-none"
-            value={requirements}
-            onChange={e => setRequirements(e.target.value)}
-            placeholder="Describe the feature or paste requirements text. The AI will generate comprehensive test cases covering happy paths, edge cases, and error scenarios."
-            disabled={loading}
-          />
+        <p className="text-sm text-slate-400">
+          Describe the feature or paste requirements text. The AI will generate comprehensive test cases and save them as drafts automatically.
+        </p>
+        <textarea
+          className="input w-full h-36 resize-none"
+          value={requirements}
+          onChange={e => setRequirements(e.target.value)}
+          placeholder="e.g. User should be able to log in with email and password, with form validation and error handling for wrong credentials..."
+          disabled={loading}
+          autoFocus
+        />
+        <div className="bg-slate-800/60 rounded-lg px-3 py-2 flex items-start gap-2 text-xs text-slate-400">
+          <Clock className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-500" />
+          <span>Generation runs in the background (typically 1–2 minutes). You can close this and check the list shortly.</span>
         </div>
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
-          <button onClick={handleGenerate} disabled={loading || !requirements.trim()} className="btn-primary flex items-center gap-2">
+        <div className="flex justify-end gap-3 pt-1">
+          <button onClick={onClose} disabled={loading} className="btn-secondary">Cancel</button>
+          <button onClick={handleGenerate} disabled={loading || requirements.trim().length < 3} className="btn-primary flex items-center gap-2">
             {loading ? <LoadingSpinner size="sm" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? 'Generating…' : 'Generate'}
+            {loading ? 'Submitting…' : 'Generate & Save'}
           </button>
         </div>
-
-        {result && (
-          <div className="border-t border-slate-800 pt-4 space-y-3">
-            {result.coverage_summary && (
-              <div className="bg-slate-800 rounded-lg p-3 text-sm text-slate-300">
-                <span className="text-xs text-slate-500 uppercase tracking-wider block mb-1">Coverage Summary</span>
-                {result.coverage_summary}
-              </div>
-            )}
-            {result.gaps_noted.length > 0 && (
-              <div className="bg-amber-900/20 border border-amber-800/40 rounded-lg p-3">
-                <span className="text-xs text-amber-400 uppercase tracking-wider block mb-1">Gaps Noted</span>
-                <ul className="space-y-0.5">
-                  {result.gaps_noted.map((g, i) => <li key={i} className="text-xs text-amber-300">{g}</li>)}
-                </ul>
-              </div>
-            )}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-slate-200">{result.test_cases.length} test cases generated</span>
-                <button onClick={handleSaveAll} disabled={saving} className="btn-primary flex items-center gap-2 text-sm">
-                  {saving && <LoadingSpinner size="sm" />}
-                  {saving ? 'Saving…' : 'Save All as Draft'}
-                </button>
-              </div>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {result.test_cases.map((tc, i) => (
-                  <div key={i} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm text-slate-200 font-medium">{tc.title ?? `Test Case ${i + 1}`}</p>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <StatusPill status={tc.priority ?? 'medium'} map={PRIORITY_COLORS} />
-                        <span className="text-xs text-slate-500">{tc.test_type ?? 'functional'}</span>
-                      </div>
-                    </div>
-                    {tc.objective && <p className="text-xs text-slate-400 mt-1">{tc.objective}</p>}
-                    {tc.steps && tc.steps.length > 0 && (
-                      <p className="text-xs text-slate-500 mt-1">{tc.steps.length} steps</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </ModalWrap>
   )
@@ -811,9 +761,9 @@ function CreatePlanModal({ projectId, onClose, onCreated }: CreatePlanModalProps
 
 // ── Generate Strategy Modal ───────────────────────────────────────────────────
 
-interface GenerateStrategyModalProps { projectId: string; onClose: () => void; onCreated: () => void }
+interface GenerateStrategyModalProps { projectId: string; onClose: () => void }
 
-function GenerateStrategyModal({ projectId, onClose, onCreated }: GenerateStrategyModalProps) {
+function GenerateStrategyModal({ projectId, onClose }: GenerateStrategyModalProps) {
   const [context, setContext] = useState('')
   const [strategyName, setStrategyName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -822,17 +772,18 @@ function GenerateStrategyModal({ projectId, onClose, onCreated }: GenerateStrate
     if (!context.trim()) { toast.error('Project context is required'); return }
     setLoading(true)
     try {
-      await testManagementService.aiGenerateStrategy({
+      await testManagementService.aiGenerateStrategyAsync({
         project_id: projectId,
         project_context: context.trim(),
         strategy_name: strategyName || undefined,
       })
-      toast.success('Test strategy generated')
-      onCreated()
+      toast.success(
+        'Strategy is being generated in the background and will appear in the list shortly.',
+        { duration: 7000 }
+      )
       onClose()
     } catch {
       toast.error('Strategy generation failed')
-    } finally {
       setLoading(false)
     }
   }
@@ -852,16 +803,18 @@ function GenerateStrategyModal({ projectId, onClose, onCreated }: GenerateStrate
             onChange={e => setContext(e.target.value)}
             placeholder="Describe your project: technology stack, team size, release cadence, key features, compliance requirements, known risks, etc. The more context, the better the strategy."
             disabled={loading}
+            autoFocus
           />
         </div>
-        <div className="bg-slate-800 rounded-lg p-3 text-xs text-slate-400">
-          The AI will generate a complete test strategy covering: objectives, scope, test types, risk assessment, entry/exit criteria, environments, and automation approach.
+        <div className="bg-slate-800/60 rounded-lg px-3 py-2 flex items-start gap-2 text-xs text-slate-400">
+          <Clock className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-500" />
+          <span>Covers objectives, scope, test types, risk assessment, entry/exit criteria, environments, and automation approach. Runs in the background — typically 1–2 minutes.</span>
         </div>
         <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={onClose} disabled={loading} className="btn-secondary">Cancel</button>
           <button onClick={handleGenerate} disabled={loading || !context.trim()} className="btn-primary flex items-center gap-2">
             {loading ? <LoadingSpinner size="sm" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? 'Generating…' : 'Generate Strategy'}
+            {loading ? 'Submitting…' : 'Generate & Save'}
           </button>
         </div>
       </div>
@@ -1026,7 +979,6 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
         <AIGenerateModal
           projectId={projectId}
           onClose={() => setShowAiGen(false)}
-          onCreated={handleRefresh}
         />
       )}
       {selectedCase && (
@@ -1136,9 +1088,11 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
   const handleAiCreatePlan = async () => {
     setAiLoading(true)
     try {
-      await testManagementService.aiCreatePlan({ project_id: projectId })
-      toast.success('AI test plan created')
-      mutate()
+      await testManagementService.aiCreatePlanAsync({ project_id: projectId })
+      toast.success(
+        'AI is building the test plan in the background — refresh the list in a moment.',
+        { duration: 7000 }
+      )
     } catch {
       toast.error('AI plan creation failed')
     } finally {
@@ -1450,7 +1404,6 @@ function StrategyTab({ projectId }: StrategyTabProps) {
         <GenerateStrategyModal
           projectId={projectId}
           onClose={() => setShowGenerate(false)}
-          onCreated={mutate}
         />
       )}
     </>

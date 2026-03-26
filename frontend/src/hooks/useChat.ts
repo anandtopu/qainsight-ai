@@ -22,7 +22,7 @@ interface UseChatReturn {
   messages: ChatMessage[]
   isLoading: boolean
   isSending: boolean
-  sendMessage: (text: string) => Promise<void>
+  sendMessage: (text: string, overrideSessionId?: string) => Promise<void>
   error: string | null
 }
 
@@ -40,12 +40,15 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
   ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   const sendMessage = useCallback(
-    async (text: string) => {
-      if (!sessionId || !text.trim() || isSending) return
+    // overrideSessionId allows callers to pass a freshly-created session ID
+    // before React has re-rendered with the updated state (avoids stale closure).
+    async (text: string, overrideSessionId?: string) => {
+      const sid = overrideSessionId ?? sessionId
+      if (!sid || !text.trim() || isSending) return
 
       const tempUserMsg: ChatMessage = {
         id: `temp-user-${Date.now()}`,
-        session_id: sessionId,
+        session_id: sid,
         role: 'user',
         content: text,
         sources: null,
@@ -53,7 +56,7 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
       }
       const tempAssistantMsg: ChatMessage = {
         id: `temp-assistant-${Date.now()}`,
-        session_id: sessionId,
+        session_id: sid,
         role: 'assistant',
         content: '…',
         sources: null,
@@ -65,7 +68,7 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
       setError(null)
 
       try {
-        await chatService.sendMessage(sessionId, text, projectId)
+        await chatService.sendMessage(sid, text, projectId)
         setOptimisticMessages((prev) =>
           prev.filter((m) => m.id !== tempAssistantMsg.id && m.id !== tempUserMsg.id),
         )

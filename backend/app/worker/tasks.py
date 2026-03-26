@@ -283,6 +283,231 @@ def run_agent_pipeline(
 
 
 @celery_app.task(
+    name="app.worker.tasks.generate_ai_test_cases_task",
+    bind=True,
+    max_retries=1,
+    queue="ai_analysis",
+    time_limit=300,
+)
+def generate_ai_test_cases_task(self, requirements: str, project_id: str, author_id: str) -> dict:
+    """Background task: run LLM test-case generation and persist results to DB.
+    Enqueued by POST /cases/ai-generate/async — fires immediately and returns,
+    so the HTTP request never times out."""
+    import json
+    import uuid as _uuid
+    from app.services.test_case_ai_agent import generate_test_cases_tool
+
+    async def _persist(result: dict) -> int:
+        from app.db.postgres import AsyncSessionLocal
+        from app.models.postgres import ManagedTestCase, TestCaseVersion
+
+        saved = 0
+        async with AsyncSessionLocal() as db:
+            for tc_data in result.get("test_cases", []):
+                tc = ManagedTestCase(
+                    project_id=_uuid.UUID(project_id),
+                    title=tc_data.get("title", "AI Generated Test Case"),
+                    description=tc_data.get("objective"),
+                    objective=tc_data.get("objective"),
+                    preconditions=tc_data.get("preconditions"),
+                    steps=tc_data.get("steps"),
+                    expected_result=tc_data.get("expected_result"),
+                    test_data=tc_data.get("test_data"),
+                    test_type=tc_data.get("test_type", "functional"),
+                    priority=tc_data.get("priority", "medium"),
+                    severity=tc_data.get("severity", "major"),
+                    feature_area=tc_data.get("feature_area"),
+                    tags=tc_data.get("tags", []),
+                    estimated_duration_minutes=tc_data.get("estimated_duration_minutes"),
+                    ai_generated=True,
+                    ai_generation_prompt=requirements,
+                    author_id=_uuid.UUID(author_id),
+                    status="draft",
+                    version=1,
+                )
+                db.add(tc)
+                await db.flush()
+                ver = TestCaseVersion(
+                    test_case_id=tc.id,
+                    version=1,
+                    title=tc.title,
+                    description=tc.description,
+                    steps=tc.steps,
+                    expected_result=tc.expected_result,
+                    status="draft",
+                    changed_by_id=_uuid.UUID(author_id),
+                    change_summary="AI generated",
+                    change_type="created",
+                )
+                db.add(ver)
+                saved += 1
+            await db.commit()
+        return saved
+
+    logger.info("[Task %s] AI generate test cases project=%s", self.request.id, project_id)
+    try:
+        raw = generate_test_cases_tool.invoke({"requirements": requirements})
+        result = json.loads(raw) if isinstance(raw, str) else raw
+        saved = _run_async(_persist(result))
+        logger.info("[Task %s] AI generation complete, saved %d cases", self.request.id, saved)
+        return {"saved": saved}
+    except json.JSONDecodeError:
+        logger.error("[Task %s] Failed to parse AI response", self.request.id)
+        return {"saved": 0, "error": "Failed to parse AI response"}
+    except Exception as exc:
+        logger.error("[Task %s] AI generation failed: %s", self.request.id, exc, exc_info=True)
+        raise self.retry(exc=exc, countdown=30)
+
+
+@celery_app.task(
+    name="app.worker.tasks.create_ai_test_plan_task",
+    bind=True,
+    max_retries=1,
+    queue="ai_analysis",
+    time_limit=300,
+)
+def create_ai_test_plan_task(
+    self,
+    project_id: str,
+    author_id: str,
+    plan_name: str | None = None,
+    constraints: str | None = None,
+) -> dict:
+    """Background task: run LLM plan optimisation and persist the test plan to DB."""
+    import json
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from app.services.test_case_ai_agent import optimize_test_plan_tool
+
+    async def _build_and_save() -> dict:
+        from sqlalchemy import select
+        from app.db.postgres import AsyncSessionLocal
+        from app.models.postgres import ManagedTestCase, TestPlan, TestPlanItem
+
+        async with AsyncSessionLocal() as db:
+            q = select(ManagedTestCase).where(
+                ManagedTestCase.project_id == _uuid.UUID(project_id),
+                ManagedTestCase.status.in_(["approved", "active"]),
+            )
+            result = await db.execute(q)
+            cases = result.scalars().all()
+            if not cases:
+                return {"error": "No approved test cases found for this project"}
+
+            tc_json = json.dumps([{
+                "title": c.title,
+                "priority": c.priority,
+                "test_type": c.test_type,
+                "estimated_duration_minutes": c.estimated_duration_minutes or 5,
+            } for c in cases], indent=2)
+            constraints_text = constraints or "No specific constraints. Optimize for maximum risk coverage."
+
+            raw = optimize_test_plan_tool.invoke({
+                "test_cases_json": tc_json,
+                "constraints": constraints_text,
+            })
+            optimization = json.loads(raw) if isinstance(raw, str) else raw
+
+            plan = TestPlan(
+                project_id=_uuid.UUID(project_id),
+                name=plan_name or f"AI Test Plan — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+                description=optimization.get("optimization_notes"),
+                ai_generated=True,
+                ai_generation_context=constraints,
+                created_by_id=_uuid.UUID(author_id),
+                total_cases=len(cases),
+            )
+            db.add(plan)
+            await db.flush()
+
+            order_map: dict[str, int] = {
+                entry.get("title", ""): entry.get("execution_order", 999)
+                for entry in optimization.get("optimized_order", [])
+            }
+            for tc in cases:
+                db.add(TestPlanItem(
+                    plan_id=plan.id,
+                    test_case_id=tc.id,
+                    order_index=order_map.get(tc.title, 999),
+                ))
+            await db.commit()
+            return {"plan_id": str(plan.id), "total_cases": len(cases)}
+
+    logger.info("[Task %s] AI create test plan project=%s", self.request.id, project_id)
+    try:
+        result = _run_async(_build_and_save())
+        logger.info("[Task %s] AI plan creation complete: %s", self.request.id, result)
+        return result
+    except Exception as exc:
+        logger.error("[Task %s] AI plan creation failed: %s", self.request.id, exc, exc_info=True)
+        raise self.retry(exc=exc, countdown=30)
+
+
+@celery_app.task(
+    name="app.worker.tasks.generate_ai_strategy_task",
+    bind=True,
+    max_retries=1,
+    queue="ai_analysis",
+    time_limit=300,
+)
+def generate_ai_strategy_task(
+    self,
+    project_id: str,
+    author_id: str,
+    project_context: str,
+    strategy_name: str | None = None,
+) -> dict:
+    """Background task: run LLM strategy generation and persist to DB."""
+    import json
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from app.services.test_case_ai_agent import generate_test_strategy_tool
+
+    async def _build_and_save() -> dict:
+        from app.db.postgres import AsyncSessionLocal
+        from app.models.postgres import TestStrategy
+        from app.core.config import settings
+
+        raw = generate_test_strategy_tool.invoke({"project_context": project_context})
+        result = json.loads(raw) if isinstance(raw, str) else raw
+
+        async with AsyncSessionLocal() as db:
+            strategy = TestStrategy(
+                project_id=_uuid.UUID(project_id),
+                name=strategy_name or f"Test Strategy — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+                version_label="v1.0",
+                status="draft",
+                objective=result.get("objective"),
+                scope=result.get("scope"),
+                out_of_scope=result.get("out_of_scope"),
+                test_approach=result.get("test_approach"),
+                risk_assessment=result.get("risk_assessment"),
+                test_types=result.get("test_types"),
+                entry_criteria=result.get("entry_criteria"),
+                exit_criteria=result.get("exit_criteria"),
+                environments=result.get("environments"),
+                automation_approach=result.get("automation_approach"),
+                defect_management=result.get("defect_management"),
+                ai_generated=True,
+                generation_context=project_context,
+                ai_model_used=settings.LLM_MODEL,
+                created_by_id=_uuid.UUID(author_id),
+            )
+            db.add(strategy)
+            await db.commit()
+            return {"strategy_id": str(strategy.id)}
+
+    logger.info("[Task %s] AI generate strategy project=%s", self.request.id, project_id)
+    try:
+        result = _run_async(_build_and_save())
+        logger.info("[Task %s] AI strategy generation complete: %s", self.request.id, result)
+        return result
+    except Exception as exc:
+        logger.error("[Task %s] AI strategy generation failed: %s", self.request.id, exc, exc_info=True)
+        raise self.retry(exc=exc, countdown=30)
+
+
+@celery_app.task(
     name="app.worker.tasks.take_coverage_snapshot",
     queue="default",
 )

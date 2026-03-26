@@ -159,23 +159,26 @@ export default function ChatPage() {
 
   const handleSend = async () => {
     if (!input.trim() || isSending) return
-    if (!activeSessionId) {
-      // Auto-create session on first message
+    const text = input
+    setInput('')
+
+    let sid = activeSessionId
+    if (!sid) {
+      // Auto-create session on first message, then pass the new ID directly to
+      // sendMessage so we don't rely on the state update propagating first.
       try {
         const res = await chatService.createSession({ project_id: activeProject?.id })
+        sid = res.data.id
+        setActiveSessionId(sid)
         await reloadSessions()
-        setActiveSessionId(res.data.id)
-        // Message will be sent after state update — user needs to click again
-        // (or we could queue it)
       } catch {
+        setInput(text) // restore on failure
         toast.error('Could not create chat session')
         return
       }
     }
-    const text = input
-    setInput('')
-    await sendMessage(text)
-    // Reload sessions to update title
+
+    await sendMessage(text, sid)
     await reloadSessions()
   }
 
