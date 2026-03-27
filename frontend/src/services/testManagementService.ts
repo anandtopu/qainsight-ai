@@ -333,5 +333,5 @@ export const testManagementService = {
 
   // Audit Log
   getAuditLog: (projectId: string, params?: { entity_type?: string; action?: string; page?: number; size?: number }): Promise<PaginatedResponse<AuditLogEntry>> =>
-    api.get('/api/v1/test-management/audit-log', { params: { project_id: projectId, ...params } }).then(r => r.data),
+    api.get('/api/v1/test-management/audit', { params: { project_id: projectId, ...params } }).then(r => r.data),
 }

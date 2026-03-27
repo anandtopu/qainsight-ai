@@ -192,7 +192,7 @@ class AnomalyDetectionAgent(BaseAgent):
                 .where(TestCaseHistory.created_at >= cutoff)
                 .group_by(TestCaseHistory.test_fingerprint)
             )
-            avg_by_fingerprint = {r.test_fingerprint: r.avg_ms for r in hist.all()}
+            avg_by_fingerprint = {r.test_fingerprint: float(r.avg_ms) for r in hist.all()}
 
             if not avg_by_fingerprint:
                 return []

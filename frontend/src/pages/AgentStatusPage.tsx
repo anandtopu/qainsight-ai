@@ -232,7 +232,11 @@ export default function AgentStatusPage() {
   const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null)
   const [showSummary, setShowSummary] = useState(false)
 
-  const { data: pipelines = [], isLoading: pipelinesLoading } = usePipelines(runId)
+  const { data: rawPipelines = [], isLoading: pipelinesLoading } = usePipelines(runId)
+  // Sort descending by created_at client-side as a defensive guarantee
+  const pipelines = [...rawPipelines].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
   const { data: stages = [], isLoading: stagesLoading } = usePipelineStages(selectedPipeline)
   const { data: liveRuns = [] } = useActiveLiveRuns()
   const { data: summary } = useRunSummary(

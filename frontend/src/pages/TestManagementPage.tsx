@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ClipboardList, Plus, Sparkles, ChevronDown, ChevronRight,
   Star, Clock, User, Tag, CheckCircle2, XCircle, AlertCircle,
@@ -1160,7 +1161,31 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
                         <h3 className="text-sm font-semibold text-slate-100 truncate">{plan.name}</h3>
-                        <StatusPill status={plan.status} map={PLAN_STATUS_COLORS} />
+                        {/* Status selector — click stops propagation so it doesn't toggle expand */}
+                        <div onClick={e => e.stopPropagation()}>
+                          <select
+                            value={plan.status}
+                            onChange={async e => {
+                              try {
+                                await testManagementService.updatePlan(plan.id, { status: e.target.value })
+                                await mutate()
+                                toast.success('Status updated')
+                              } catch {
+                                toast.error('Failed to update status')
+                              }
+                            }}
+                            className={clsx(
+                              'text-xs font-medium rounded-full px-2 py-0.5 border cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500',
+                              PLAN_STATUS_COLORS[plan.status] ?? 'bg-slate-700 text-slate-300 border-slate-600',
+                            )}
+                          >
+                            {(['draft', 'active', 'in_progress', 'completed', 'archived'] as const).map(s => (
+                              <option key={s} value={s} className="bg-slate-900 text-slate-200">
+                                {s.replace(/_/g, ' ')}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         {plan.ai_generated && <Sparkles className="h-3.5 w-3.5 text-purple-400" aria-label="AI generated" />}
                       </div>
                       {plan.description && <p className="text-xs text-slate-400 mb-2 truncate">{plan.description}</p>}
@@ -1617,7 +1642,11 @@ function AuditTab({ projectId }: AuditTabProps) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TestManagementPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('Test Cases')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab')
+  const activeTab: Tab = (TABS as readonly string[]).includes(rawTab ?? '') ? (rawTab as Tab) : 'Test Cases'
+  const setActiveTab = (tab: Tab) => setSearchParams({ tab }, { replace: true })
+
   const project = useProjectStore(s => s.activeProject)
   const projectId = useProjectStore(s => s.activeProjectId)
 

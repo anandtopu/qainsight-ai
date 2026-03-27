@@ -27,11 +27,12 @@ async def list_pipelines(
     _: any = Depends(get_current_active_user),
 ):
     """List agent pipeline runs, optionally filtered by test run or status."""
-    q = select(AgentPipelineRun).order_by(AgentPipelineRun.created_at.desc()).limit(limit)
+    q = select(AgentPipelineRun)
     if run_id:
         q = q.where(AgentPipelineRun.test_run_id == run_id)
     if status:
         q = q.where(AgentPipelineRun.status == status)
+    q = q.order_by(AgentPipelineRun.created_at.desc()).limit(limit)
 
     result = await db.execute(q)
     return result.scalars().all()

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Download, Mail, Plus, Settings2, TrendingUp, X,
 } from 'lucide-react'
@@ -344,18 +344,55 @@ function ChartPickerModal({ enabled, onToggle, onClose }: ChartPickerProps) {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
+const PRINT_CHART_WIDTH = 680
+
 export default function TrendsPage() {
   const [days, setDays]           = useState(30)
   const [enabledCharts, setEnabled] = useState<string[]>(loadEnabledCharts)
   const [showPicker, setShowPicker] = useState(false)
   const [showEmail, setShowEmail]   = useState(false)
-  const printRef = useRef<HTMLDivElement>(null)
-
   const project   = useProjectStore(s => s.activeProject)
   const projectId = useProjectStore(s => s.activeProjectId)
   const { data: trends, isLoading } = useTrendData(days)
 
   useEffect(() => { saveEnabledCharts(enabledCharts) }, [enabledCharts])
+
+  // beforeprint fires at exactly the right moment — before the browser renders
+  // the print layout. We set explicit pixel widths on Recharts SVGs so they
+  // don't collapse to 0 when @media print reflows the page.
+  useEffect(() => {
+    function onBeforePrint() {
+      document.querySelectorAll<HTMLElement>('.recharts-responsive-container').forEach(el => {
+        el.dataset.printOrigW = el.style.width
+        el.style.width = `${PRINT_CHART_WIDTH}px`
+        el.style.minWidth = `${PRINT_CHART_WIDTH}px`
+      })
+      document.querySelectorAll<SVGElement>('.recharts-surface').forEach(svg => {
+        svg.dataset.printOrigW = svg.getAttribute('width') ?? ''
+        svg.setAttribute('width', String(PRINT_CHART_WIDTH))
+      })
+    }
+    function onAfterPrint() {
+      document.querySelectorAll<HTMLElement>('.recharts-responsive-container').forEach(el => {
+        el.style.width = el.dataset.printOrigW ?? ''
+        el.style.minWidth = ''
+        delete el.dataset.printOrigW
+      })
+      document.querySelectorAll<SVGElement>('.recharts-surface').forEach(svg => {
+        const orig = svg.dataset.printOrigW ?? ''
+        if (orig) svg.setAttribute('width', orig)
+        else svg.removeAttribute('width')
+        delete svg.dataset.printOrigW
+      })
+      window.dispatchEvent(new Event('resize'))
+    }
+    window.addEventListener('beforeprint', onBeforePrint)
+    window.addEventListener('afterprint', onAfterPrint)
+    return () => {
+      window.removeEventListener('beforeprint', onBeforePrint)
+      window.removeEventListener('afterprint', onAfterPrint)
+    }
+  }, [])
 
   function toggleChart(id: string) {
     setEnabled(prev =>
@@ -368,27 +405,9 @@ export default function TrendsPage() {
   }
 
   function handlePrint() {
-    // Force recharts to re-render at full width before print dialog opens.
-    // We temporarily mark each chart wrapper with an explicit pixel width so
-    // ResponsiveContainer can measure a real size instead of 0.
-    const containers = document.querySelectorAll<HTMLElement>('.recharts-responsive-container')
-
-    // Snapshot sidebar/main widths and force print-width layout
-    const savedWidths: string[] = []
-    containers.forEach((el, i) => {
-      savedWidths[i] = el.style.width
-      el.style.width = `${el.offsetParent ? (el.offsetParent as HTMLElement).clientWidth || 700 : 700}px`
-    })
-
-    // Dispatch resize so ResponsiveContainer re-measures
-    window.dispatchEvent(new Event('resize'))
-
-    setTimeout(() => {
-      window.print()
-      // Restore
-      containers.forEach((el, i) => { el.style.width = savedWidths[i] })
-      window.dispatchEvent(new Event('resize'))
-    }, 400)
+    // beforeprint/afterprint handlers (registered in useEffect above)
+    // set explicit SVG dimensions at the right moment — just call print directly.
+    window.print()
   }
 
   if (!project) {
@@ -423,7 +442,7 @@ export default function TrendsPage() {
         <EmailModal onClose={() => setShowEmail(false)} projectId={projectId} days={days} enabledCharts={enabledCharts} />
       )}
 
-      <div className="space-y-6 print:space-y-4" ref={printRef}>
+      <div className="space-y-6 print:space-y-4">
         <PageHeader
           title="Trends"
           subtitle={`Historical trends for ${project.name}`}
@@ -610,13 +629,21 @@ export default function TrendsPage() {
           /* ── Legend text ── */
           .recharts-legend-item-text { color: #475569 !important; fill: #475569 !important; }
 
-          /* ── Recharts sizing: gives ResponsiveContainer a real pixel size ── */
+          /* ── Recharts sizing: lock to explicit px so ResizeObserver cannot
+             collapse the SVG to 0 when @media print reflows the page ── */
           .recharts-responsive-container {
-            width: 100% !important;
-            min-height: 260px !important;
+            width: 680px !important;
+            min-width: 680px !important;
+            overflow: visible !important;
           }
-          .recharts-wrapper { width: 100% !important; }
-          .recharts-surface { overflow: visible !important; }
+          .recharts-wrapper {
+            width: 680px !important;
+            overflow: visible !important;
+          }
+          .recharts-surface {
+            width: 680px !important;
+            overflow: visible !important;
+          }
 
           /* ── Print title at top of first page ── */
           body::before {
