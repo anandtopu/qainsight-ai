@@ -211,7 +211,7 @@ function LinkRunModal({ releaseId, phases, onClose, onSaved }: {
             <label className="block text-xs text-slate-400 mb-1">Test Run</label>
             <select value={selectedRun} onChange={e => setSelectedRun(e.target.value)} className="input w-full">
               <option value="">— Select run —</option>
-              {runs.map(r => (
+              {(runs as Array<{ id: string; build_number?: number; created_at: string }>).map(r => (
                 <option key={r.id} value={r.id}>
                   {r.build_number ?? r.id.slice(0, 8)} — {new Date(r.created_at).toLocaleDateString()}
                 </option>

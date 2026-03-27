@@ -138,17 +138,15 @@ export default function SuiteDetailPage() {
 
   return (
     <div className="space-y-6">
+      <button
+        onClick={() => navigate(`/coverage?days=${days}`)}
+        className="flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors text-sm"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Coverage
+      </button>
       <PageHeader
         title={suiteName}
-        subtitle={
-          <button
-            onClick={() => navigate(`/coverage?days=${days}`)}
-            className="flex items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors text-sm"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to Coverage
-          </button>
-        }
         actions={periodSelector}
       />
 

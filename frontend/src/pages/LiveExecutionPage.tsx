@@ -208,7 +208,7 @@ function EventRow({ event }: { event: LiveEvent }) {
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function LiveExecutionPage() {
-  const { selectedProject } = useProjectStore()
+  const selectedProject = useProjectStore(s => s.activeProject)
   const projectId = selectedProject?.id?.toString()
 
   const {
