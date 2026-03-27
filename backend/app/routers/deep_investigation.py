@@ -13,7 +13,6 @@ from sqlalchemy import select
 from app.core.deps import get_current_active_user
 from app.db.postgres import AsyncSessionLocal
 from app.models.postgres import (
-    AgentPipelineRun,
     DeepFinding,
     FailureCluster,
     TestRun,

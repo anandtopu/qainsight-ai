@@ -98,7 +98,8 @@ async def test_release_linker_link_run_idempotent():
             self.added.append(obj)
 
     db = FakeDB()
-    fake_select = lambda *args, **kwargs: SimpleNamespace(where=lambda *a, **k: None)
+    def fake_select(*args, **kwargs):
+        return SimpleNamespace(where=lambda *a, **k: None)
     with patch("app.services.release_linker.select", new=fake_select):
         created = await release_linker.link_run_to_release(db, uuid.uuid4(), uuid.uuid4())
     assert created is True
