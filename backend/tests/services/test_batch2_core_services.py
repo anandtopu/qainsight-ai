@@ -161,11 +161,12 @@ async def test_ingestion_store_raw_allure_batch_falls_back():
         collection = SimpleNamespace(bulk_write=AsyncMock(side_effect=RuntimeError("x")))
         mongo = {"raw_allure_json": collection}
         docs = [({"allure_uuid": "u1", "test_run_id": "r1", "test_name": "t1"}, {"a": 1})]
+        fallback = AsyncMock()
         with (
             patch.dict("sys.modules", {"pymongo": SimpleNamespace(UpdateOne=lambda *a, **k: object())}, clear=False),
-            patch("app.services.ingestion.Collections.RAW_ALLURE_JSON", "raw_allure_json"),
-            patch("app.services.ingestion.get_mongo_db", return_value=mongo),
-            patch("app.services.ingestion._store_raw_allure", new=AsyncMock()) as fallback,
+            patch.object(ingestion, "Collections", SimpleNamespace(RAW_ALLURE_JSON="raw_allure_json")),
+            patch.object(ingestion, "get_mongo_db", return_value=mongo),
+            patch.object(ingestion, "_store_raw_allure", new=fallback),
         ):
             await ingestion._store_raw_allure_batch(docs)
     fallback.assert_awaited_once()
