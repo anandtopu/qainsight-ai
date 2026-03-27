@@ -103,7 +103,7 @@ export default function RunDetailPage() {
   const [suiteFilter, setSuiteFilter] = useState('')
 
   const { data: run } = useRun(runId)
-  const { data, isLoading } = useTestCases(runId, {
+  const { data, isLoading, error } = useTestCases(runId, {
     page, size: 50,
     ...(statusFilter && { status: statusFilter }),
     ...(suiteFilter && { suite: suiteFilter }),
@@ -174,6 +174,14 @@ export default function RunDetailPage() {
       <div className="card p-0 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-20"><LoadingSpinner size="lg" /></div>
+        ) : error ? (
+          <div className="flex items-center justify-center py-16 text-red-400 text-sm gap-2">
+            <span>Failed to load test cases — {(error as Error)?.message ?? 'server error'}</span>
+          </div>
+        ) : !data?.items?.length ? (
+          <div className="flex items-center justify-center py-16 text-slate-500 text-sm">
+            No test cases found for this run.
+          </div>
         ) : (
           <>
             <table className="w-full">

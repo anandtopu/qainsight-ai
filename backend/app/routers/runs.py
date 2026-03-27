@@ -1,7 +1,10 @@
 """Test run and test case list endpoints."""
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,16 +40,24 @@ async def _fetch_release_map(db: AsyncSession, run_ids: list[str]) -> dict:
     """Return {run_id: {id, name}} for all linked releases."""
     if not run_ids:
         return {}
-    query = text("""
-        SELECT rtr.test_run_id::text AS run_id,
-               r.id::text            AS release_id,
-               r.name                AS release_name
-        FROM release_test_run_links rtr
-        JOIN releases r ON r.id = rtr.release_id
-        WHERE rtr.test_run_id = ANY(:ids::uuid[])
-    """)
-    rows = (await db.execute(query, {"ids": run_ids})).fetchall()
-    return {r.run_id: {"id": r.release_id, "name": r.release_name} for r in rows}
+    try:
+        # Build a VALUES list so asyncpg receives individual UUID strings,
+        # avoiding array-binding issues with ANY(:ids::uuid[]).
+        placeholders = ", ".join(f"'{rid}'::uuid" for rid in run_ids)
+        query = text(f"""
+            SELECT rtr.test_run_id::text AS run_id,
+                   r.id::text            AS release_id,
+                   r.name                AS release_name
+            FROM release_test_run_links rtr
+            JOIN releases r ON r.id = rtr.release_id
+            WHERE rtr.test_run_id IN ({placeholders})
+        """)
+        rows = (await db.execute(query)).fetchall()
+        return {r.run_id: {"id": r.release_id, "name": r.release_name} for r in rows}
+    except Exception as exc:
+        # Release tables may not exist yet (pending migration) — don't break runs endpoint
+        logger.debug("Release map fetch skipped: %s", exc)
+        return {}
 
 
 @router.get("")

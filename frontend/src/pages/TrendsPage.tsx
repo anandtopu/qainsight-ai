@@ -537,59 +537,97 @@ export default function TrendsPage() {
         )}
       </div>
 
-      {/* Print styles */}
+      {/* Print styles
+          Key design: apply print-color-adjust:exact ONLY to SVG elements so that
+          Recharts chart colours (bar fills, line strokes) are preserved.
+          ALL HTML element backgrounds are forced to white so dark Tailwind
+          utility classes (bg-slate-800/900) do NOT produce a black page.
+      */}
       <style>{`
         @media print {
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          body { background: white !important; color: #1e293b !important; margin: 0; }
-          .print\\:hidden { display: none !important; }
-
-          /* Hide nav / sidebar / topbar */
-          nav, aside, [data-sidebar], [data-topbar] { display: none !important; }
-
-          /* Force full-width layout */
-          main, [data-main] { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
-
-          /* Card styling */
-          .card {
-            border: 1px solid #cbd5e1 !important;
+          /* ── Page defaults ── */
+          @page { margin: 15mm; }
+          html, body {
             background: white !important;
             color: #1e293b !important;
+            margin: 0;
+          }
+
+          /* ── Force white background on every HTML element ── */
+          div, section, article, main, header, aside,
+          span, p, h1, h2, h3, h4, h5, h6,
+          table, thead, tbody, tr, td, th, ul, li, button, select, input {
+            background: white !important;
+            background-color: white !important;
+            color: #1e293b !important;
+            border-color: #e2e8f0 !important;
             box-shadow: none !important;
+          }
+
+          /* ── Hide chrome / controls ── */
+          .print\\:hidden { display: none !important; }
+          nav, aside, [data-sidebar], [data-topbar] { display: none !important; }
+          .recharts-tooltip-wrapper { display: none !important; }
+
+          /* ── Layout ── */
+          main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+          .grid { display: grid !important; }
+
+          /* ── Cards ── */
+          .card {
+            border: 1px solid #cbd5e1 !important;
             margin-bottom: 16px !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+            padding: 12px !important;
           }
 
-          /* Summary strip text */
-          .card p { color: #1e293b !important; }
+          /* ── Headings ── */
+          h1, h2, h3 { color: #0f172a !important; font-weight: 700; }
 
-          /* Recharts: force explicit dimensions so charts don't vanish */
+          /* ── SVGs: preserve chart data colours ── */
+          svg {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            overflow: visible !important;
+          }
+
+          /* ── Recharts axis text → dark so it's readable on white ── */
+          .recharts-text tspan,
+          .recharts-cartesian-axis-tick-value tspan {
+            fill: #475569 !important;
+          }
+
+          /* ── Grid lines → light grey on white background ── */
+          .recharts-cartesian-grid-horizontal line,
+          .recharts-cartesian-grid-vertical line {
+            stroke: #e2e8f0 !important;
+          }
+
+          /* ── Axis lines ── */
+          .recharts-cartesian-axis-line { stroke: #94a3b8 !important; }
+
+          /* ── Legend text ── */
+          .recharts-legend-item-text { color: #475569 !important; fill: #475569 !important; }
+
+          /* ── Recharts sizing: gives ResponsiveContainer a real pixel size ── */
           .recharts-responsive-container {
             width: 100% !important;
             min-height: 260px !important;
           }
-          .recharts-wrapper {
-            width: 100% !important;
-          }
-          .recharts-surface {
-            overflow: visible !important;
-          }
+          .recharts-wrapper { width: 100% !important; }
+          .recharts-surface { overflow: visible !important; }
 
-          /* Ensure grid is full-width */
-          .grid { display: grid !important; }
-
-          /* Page breaks */
-          h3 { color: #0f172a !important; }
-
-          /* Print title */
+          /* ── Print title at top of first page ── */
           body::before {
             content: "QA Insight — Trends Report";
             display: block;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 8px;
+            font-size: 20px;
+            font-weight: 700;
             color: #0f172a;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
           }
         }
       `}</style>

@@ -417,17 +417,25 @@ def run_agent_pipeline(
     Deduplicates by test_run_id so multiple triggers for the same run don't stack up.
     Moves to DLQ after max retries.
     """
-    from app.agents.workflow import run_offline_pipeline
+    from app.agents.workflow import run_offline_pipeline, run_deep_pipeline
 
-    dedup_key = f"qainsight:dedup:pipeline:{test_run_id}"
+    # Include workflow_type in dedup key so a deep run isn't blocked by a prior offline run
+    dedup_key = f"qainsight:dedup:pipeline:{test_run_id}:{workflow_type}"
 
     async def _run():
         if await _is_duplicate(dedup_key, ttl=7200):
             logger.info(
-                "[Task %s] Skipping duplicate pipeline for run=%s",
-                self.request.id, test_run_id,
+                "[Task %s] Skipping duplicate pipeline for run=%s type=%s",
+                self.request.id, test_run_id, workflow_type,
             )
             return {"completed_stages": [], "error_count": 0, "duplicate": True}
+
+        if workflow_type == "deep":
+            return await run_deep_pipeline(
+                test_run_id=test_run_id,
+                project_id=project_id,
+                build_number=build_number,
+            )
         return await run_offline_pipeline(
             test_run_id=test_run_id,
             project_id=project_id,

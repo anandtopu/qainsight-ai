@@ -3,6 +3,7 @@ Deep Investigation Router.
 Triggers the deep analysis pipeline and exposes cluster/finding results.
 """
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -57,7 +58,7 @@ class DeepFindingResponse(BaseModel):
 
 @router.post("/{run_id}", response_model=TriggerDeepResponse)
 async def trigger_deep_investigation(
-    run_id: str,
+    run_id: uuid.UUID,
     body: TriggerDeepRequest,
     current_user: User = Depends(get_current_active_user),
 ):
@@ -96,7 +97,7 @@ async def trigger_deep_investigation(
 
 @router.get("/{run_id}/clusters", response_model=list[ClusterResponse])
 async def get_failure_clusters(
-    run_id: str,
+    run_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
 ):
     """Return semantic failure clusters for a test run."""
@@ -123,7 +124,7 @@ async def get_failure_clusters(
 
 @router.get("/{run_id}/findings", response_model=list[DeepFindingResponse])
 async def get_deep_findings(
-    run_id: str,
+    run_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
 ):
     """Return deep investigation findings per failure cluster for a test run."""

@@ -320,7 +320,12 @@ async def run_offline_pipeline(
         "current_stage":      "ingestion",
     }
 
-    app = _live_app if workflow_type == "live" else _offline_app
+    if workflow_type == "deep":
+        app = _deep_app
+    elif workflow_type == "live":
+        app = _live_app
+    else:
+        app = _offline_app
 
     try:
         logger.info(
@@ -442,7 +447,7 @@ async def _mark_pipeline_done(
     pipeline_run_id: str, success: bool, error: Optional[str] = None
 ) -> None:
     async with AsyncSessionLocal() as db:
-        from sqlalchemy import select as sa_select
+        from sqlalchemy import select as sa_select, update as sa_update
         result = await db.execute(
             sa_select(AgentPipelineRun).where(AgentPipelineRun.id == pipeline_run_id)
         )
@@ -452,4 +457,15 @@ async def _mark_pipeline_done(
             run.completed_at = datetime.now(timezone.utc)
             if error:
                 run.error = error[:2000]
-            await db.commit()
+
+        # Mark any stages that were never reached (still "pending") as "skipped"
+        # so the UI shows a clean final state instead of hanging PENDING badges.
+        await db.execute(
+            sa_update(AgentStageResult)
+            .where(
+                AgentStageResult.pipeline_run_id == pipeline_run_id,
+                AgentStageResult.status == "pending",
+            )
+            .values(status="skipped")
+        )
+        await db.commit()

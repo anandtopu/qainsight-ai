@@ -3,6 +3,7 @@ Release Readiness Router.
 Exposes go/no-go release decisions produced by ReleaseRiskAgent.
 """
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,7 +38,7 @@ class OverrideRequest(BaseModel):
 
 @router.get("/{run_id}", response_model=ReleaseDecisionResponse)
 async def get_release_decision(
-    run_id: str,
+    run_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
 ):
     """
@@ -73,7 +74,7 @@ async def get_release_decision(
 
 @router.post("/{run_id}/override", response_model=ReleaseDecisionResponse)
 async def override_release_decision(
-    run_id: str,
+    run_id: uuid.UUID,
     body: OverrideRequest,
     current_user: User = Depends(require_role(UserRole.QA_LEAD)),
 ):
