@@ -25,6 +25,7 @@ logger = logging.getLogger("agents.analysis")
 
 class AnalysisAgent(BaseAgent):
     stage_name = "root_cause_analysis"
+    UNKNOWN_CATEGORY = "UNKNOWN"
 
     async def run(self, state: dict) -> dict:
         pipeline_run_id = state["pipeline_run_id"]
@@ -127,32 +128,10 @@ class AnalysisAgent(BaseAgent):
                     "ReAct agent timed out after %ds for test %s — using fallback",
                     settings.AI_TIMEOUT_SECONDS, tc_id,
                 )
-                analysis = {
-                    "root_cause_summary": f"Analysis timed out after {settings.AI_TIMEOUT_SECONDS}s. Manual review required.",
-                    "failure_category": "UNKNOWN",
-                    "backend_error_found": False,
-                    "pod_issue_found": False,
-                    "is_flaky": False,
-                    "confidence_score": 0,
-                    "recommended_actions": ["Re-run analysis with a faster LLM or higher timeout", "Review stack trace manually"],
-                    "evidence_references": [],
-                    "requires_human_review": True,
-                    "timed_out": True,
-                }
+                analysis = self._build_timeout_analysis()
             except Exception as exc:
                 logger.error("ReAct agent failed for %s: %s", tc_id, exc)
-                analysis = {
-                    "root_cause_summary": f"Analysis failed: {exc}. Manual review required.",
-                    "failure_category": "UNKNOWN",
-                    "backend_error_found": False,
-                    "pod_issue_found": False,
-                    "is_flaky": False,
-                    "confidence_score": 0,
-                    "recommended_actions": ["Review stack trace manually", "Check LLM service connectivity"],
-                    "evidence_references": [],
-                    "requires_human_review": True,
-                    "error": str(exc),
-                }
+                analysis = self._build_error_analysis(exc)
 
             # Persist to ai_analysis table (best-effort — don't fail the stage if upsert fails)
             try:
@@ -163,19 +142,58 @@ class AnalysisAgent(BaseAgent):
             return analysis
 
     async def _fetch_test_metadata(self, tc_ids: list[str]) -> dict[str, dict]:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(TestCase.id, TestCase.test_name, TestCase.suite_name, TestCase.class_name)
-                .where(TestCase.id.in_(tc_ids))
-            )
-            return {
-                str(row.id): {
-                    "test_name": row.test_name,
-                    "suite_name": row.suite_name,
-                    "class_name": row.class_name,
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(TestCase.id, TestCase.test_name, TestCase.suite_name, TestCase.class_name)
+                    .where(TestCase.id.in_(tc_ids))
+                )
+                return {
+                    str(row.id): {
+                        "test_name": row.test_name,
+                        "suite_name": row.suite_name,
+                        "class_name": row.class_name,
+                    }
+                    for row in result.all()
                 }
-                for row in result.all()
-            }
+        except Exception as db_exc:
+            logger.error("Failed to fetch test metadata: %s", db_exc)
+            return {}
+
+    def _build_timeout_analysis(self) -> dict:
+        timeout = settings.AI_TIMEOUT_SECONDS
+        return {
+            "root_cause_summary": f"Analysis timed out after {timeout}s. Manual review required.",
+            "failure_category": self.UNKNOWN_CATEGORY,
+            "backend_error_found": False,
+            "pod_issue_found": False,
+            "is_flaky": False,
+            "confidence_score": 0,
+            "recommended_actions": [
+                "Re-run analysis with a faster LLM or higher timeout",
+                "Review stack trace manually",
+            ],
+            "evidence_references": [],
+            "requires_human_review": True,
+            "timed_out": True,
+        }
+
+    def _build_error_analysis(self, exc: Exception) -> dict:
+        return {
+            "root_cause_summary": f"Analysis failed: {exc}. Manual review required.",
+            "failure_category": self.UNKNOWN_CATEGORY,
+            "backend_error_found": False,
+            "pod_issue_found": False,
+            "is_flaky": False,
+            "confidence_score": 0,
+            "recommended_actions": [
+                "Review stack trace manually",
+                "Check LLM service connectivity",
+            ],
+            "evidence_references": [],
+            "requires_human_review": True,
+            "error": str(exc),
+        }
 
     async def _upsert_analysis(self, tc_id: str, analysis: dict) -> None:
         """Insert or update ai_analysis row for this test case."""
@@ -198,7 +216,7 @@ class AnalysisAgent(BaseAgent):
                 index_elements=["test_case_id"],
                 set_={
                     "root_cause_summary": analysis.get("root_cause_summary"),
-                    "failure_category": analysis.get("failure_category", "UNKNOWN"),
+                    "failure_category": analysis.get("failure_category", self.UNKNOWN_CATEGORY),
                     "backend_error_found": analysis.get("backend_error_found", False),
                     "pod_issue_found": analysis.get("pod_issue_found", False),
                     "is_flaky": analysis.get("is_flaky", False),

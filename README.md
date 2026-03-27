@@ -37,6 +37,35 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    U[User / QA Engineer] --> FE[Frontend - React + Vite + TypeScript]
+    FE --> API[Backend API - FastAPI]
+    API --> SVC[Service Layer]
+    API --> AUTH[Auth/JWT]
+    API --> WS[Live Updates WebSocket]
+    API --> WEBHOOK[Ingestion Webhook]
+
+    WEBHOOK --> PARSERS[Parsers: Allure, TestNG, etc.]
+    PARSERS --> INGEST[Ingestion Orchestrator]
+    INGEST --> PG[(PostgreSQL)]
+    INGEST --> MG[(MongoDB)]
+    INGEST --> OBJ[(MinIO / S3)]
+
+    SVC --> AGENT[AI Agent - LangChain ReAct]
+    AGENT --> TOOLS[Tools: stacktrace, payload, splunk, flakiness, OCP]
+    AGENT --> LLM[LLM Provider: Ollama/OpenAI/Gemini/etc.]
+    AGENT --> VDB[(ChromaDB)]
+
+    API --> REDIS[(Redis)]
+    REDIS --> CELERY[Celery Workers]
+    CELERY --> TASKS[Async Tasks: triage, quality gates]
+    CELERY --> FLOWER[Flower Monitoring]
+
+    FE -->|REST/SWR| API
+    FE -->|Live status| WS
+```
+
 ```
 [Tests/CI Upload] -> [FastAPI Backend/API]
                           |
