@@ -57,12 +57,18 @@ function loadEnabledCharts(): string[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) return JSON.parse(stored)
-  } catch {}
+  } catch (_e) {
+    // ignore parse errors — fall through to defaults
+  }
   return CHART_CATALOG.filter(c => c.defaultEnabled).map(c => c.id)
 }
 
 function saveEnabledCharts(ids: string[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ids)) } catch {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+  } catch (_e) {
+    // ignore storage errors (e.g. private browsing quota)
+  }
 }
 
 // ── Individual chart components ────────────────────────────────────────────

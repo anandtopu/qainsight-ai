@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
 from app.models.postgres import TestCase, TestRun
-from app.models.schemas import TestCaseListResponse, TestRunListResponse
+from app.models.schemas import TestCaseListResponse
 
 router = APIRouter(prefix="/api/v1/runs", tags=["Test Runs"])
 

@@ -1,11 +1,11 @@
 """Release management endpoints — CRUD for releases, phases, and test-run links."""
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, text, func
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -186,7 +186,6 @@ async def get_release(release_id: str, db: AsyncSession = Depends(get_db)):
 
     # Linked runs with aggregated metrics
     if release.test_run_links:
-        run_ids = [str(link.test_run_id) for link in release.test_run_links]
         runs_query = text("""
             SELECT
                 tr.id::text, tr.build_number, tr.status,

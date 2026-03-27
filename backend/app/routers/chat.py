@@ -6,7 +6,7 @@ the ConversationAgent to answer questions about test results.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
