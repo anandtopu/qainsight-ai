@@ -33,8 +33,11 @@ from app.routers import (
     notifications,
     projects,
     release_readiness,
+    releases,
+    reports,
     runs,
     search,
+    stream,
     test_management,
     webhooks,
 )
@@ -179,7 +182,13 @@ app.include_router(chat.router, dependencies=protected_deps)
 app.include_router(feedback.router, dependencies=protected_deps)
 app.include_router(deep_investigation.router, dependencies=protected_deps)
 app.include_router(release_readiness.router, dependencies=protected_deps)
+app.include_router(releases.router, dependencies=protected_deps)
+app.include_router(reports.router, dependencies=protected_deps)
 app.include_router(test_management.router, dependencies=protected_deps)
+# Live streaming — sessions + active list are JWT-protected;
+# POST /events/batch uses X-Session-Token (no JWT) for hot-path performance;
+# GET /sse/{project_id} validates JWT from query param (browser EventSource)
+app.include_router(stream.router)
 
 # Observability — public (no JWT required: browser fires-and-forgets)
 app.include_router(observability_router)

@@ -47,8 +47,15 @@ export default function SearchPage() {
     }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (query) doSearch(query) }, [])
+  // Re-run search whenever the URL ?q= param changes (e.g. navigating from TopBar)
+  useEffect(() => {
+    const q = searchParams.get('q') ?? ''
+    if (q) {
+      setQuery(q)
+      doSearch(q)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('q')])
 
   return (
     <div className="space-y-4">

@@ -17,8 +17,26 @@ export interface ChatMessage {
   created_at: string
 }
 
+export interface RunSummary {
+  test_run_id: string
+  project_id: string
+  build_number: string
+  executive_summary: string
+  markdown_report: string | null   // null for stubs (AI analysis pending)
+  anomaly_count: number
+  is_regression: boolean
+  analysis_count: number
+  generated_at: string
+  is_stub?: boolean                // true = stats-based, no LLM summary yet
+}
+
 const chatService = {
   listSessions: () => api.get<ChatSession[]>('/api/v1/chat/sessions'),
+
+  getRunSummaries: (projectId?: string | null, days = 5) =>
+    api.get<RunSummary[]>('/api/v1/chat/run-summaries', {
+      params: { project_id: projectId ?? undefined, days },
+    }),
 
   createSession: (payload: { project_id?: string; title?: string }) =>
     api.post<ChatSession>('/api/v1/chat/sessions', payload),

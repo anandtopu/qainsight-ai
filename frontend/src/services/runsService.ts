@@ -12,4 +12,7 @@ export const runsService = {
 
   getTest: (runId: string, testId: string) =>
     api.get(`/api/v1/runs/${runId}/tests/${testId}`).then(r => r.data),
+
+  setRelease: (runId: string, releaseName: string) =>
+    api.post(`/api/v1/runs/${runId}/release`, { release_name: releaseName }).then(r => r.data),
 }

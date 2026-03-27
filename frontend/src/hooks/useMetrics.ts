@@ -66,6 +66,15 @@ export function useDefects(page = 1, resolutionStatus?: string) {
   )
 }
 
+export function useSuiteDetail(suiteName: string | null, days = 30) {
+  const projectId = useProjectStore(s => s.activeProjectId)
+  return useSWR(
+    projectId && suiteName ? ['analytics-suite-detail', projectId, suiteName, days] : null,
+    () => analyticsService.getSuiteDetail(projectId as string, suiteName as string, days),
+    { revalidateOnFocus: false },
+  )
+}
+
 export function useAiSummary(days = 30) {
   const projectId = useProjectStore(s => s.activeProjectId)
   return useSWR(

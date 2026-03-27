@@ -46,6 +46,42 @@ async def publish_live_event(run_id: str, event: dict) -> str:
     return msg_id
 
 
+async def publish_event_batch(session_id: str, run_id: str, events: list) -> int:
+    """
+    Publish a batch of live events to the live events stream using a Redis pipeline.
+
+    All XADDs are sent in a single round-trip — O(1) network overhead regardless
+    of batch size. This is the critical path for 10k-concurrent-session throughput.
+
+    Returns the number of events successfully published.
+    """
+    redis = get_redis()
+    pipe = redis.pipeline()
+    for event in events:
+        # Accept both Pydantic models and raw dicts
+        event_dict: dict = event.model_dump() if hasattr(event, "model_dump") else dict(event)
+        event_type = event_dict.get("event_type", "test_result")
+        pipe.xadd(
+            LIVE_EVENTS_STREAM,
+            {
+                "run_id": run_id,
+                "session_id": session_id,
+                "event_type": event_type,
+                # Full payload carried through so the consumer has everything it needs
+                "payload": json.dumps({**event_dict, "run_id": run_id}),
+            },
+            maxlen=LIVE_STREAM_MAXLEN,
+            approximate=True,
+        )
+    results = await pipe.execute()
+    accepted = sum(1 for r in results if r is not None)
+    logger.debug(
+        "Published batch session=%s run=%s events=%d accepted=%d",
+        session_id, run_id, len(events), accepted,
+    )
+    return accepted
+
+
 async def publish_ingestion_job(sentinel_dict: dict, minio_prefix: str) -> str:
     """
     Publish a test report ingestion job to the ingestion stream.

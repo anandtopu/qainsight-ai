@@ -24,6 +24,9 @@ const AgentStatusPage           = lazy(() => import('@/pages/AgentStatusPage'))
 const DeepInvestigationPage     = lazy(() => import('@/pages/DeepInvestigationPage'))
 const ReleaseGatePage           = lazy(() => import('@/pages/ReleaseGatePage'))
 const TestManagementPage        = lazy(() => import('@/pages/TestManagementPage'))
+const LiveExecutionPage         = lazy(() => import('@/pages/LiveExecutionPage'))
+const SuiteDetailPage           = lazy(() => import('@/pages/SuiteDetailPage'))
+const ReleasesPage              = lazy(() => import('@/pages/ReleasesPage'))
 
 const Fallback = () => (
   <div className="flex items-center justify-center h-64">
@@ -53,6 +56,9 @@ export default function App() {
           } />
           <Route path="coverage" element={
             <Suspense fallback={<Fallback />}><CoveragePage /></Suspense>
+          } />
+          <Route path="coverage/suite" element={
+            <Suspense fallback={<Fallback />}><SuiteDetailPage /></Suspense>
           } />
           <Route path="failures" element={
             <Suspense fallback={<Fallback />}><FailureAnalysisPage /></Suspense>
@@ -98,6 +104,12 @@ export default function App() {
           } />
           <Route path="test-management" element={
             <Suspense fallback={<Fallback />}><TestManagementPage /></Suspense>
+          } />
+          <Route path="live" element={
+            <Suspense fallback={<Fallback />}><LiveExecutionPage /></Suspense>
+          } />
+          <Route path="releases" element={
+            <Suspense fallback={<Fallback />}><ReleasesPage /></Suspense>
           } />
         </Route>
       </Route>

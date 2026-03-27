@@ -1,13 +1,23 @@
-import { useState } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Download, Mail, Plus, Settings2, TrendingUp, X,
+} from 'lucide-react'
+import {
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
+  PieChart, Pie, Cell,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts'
+import { clsx } from 'clsx'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
-import TrendChart from '@/components/charts/TrendChart'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useTrendData } from '@/hooks/useMetrics'
 import { useProjectStore } from '@/store/projectStore'
 import type { TrendPoint } from '@/services/metricsService'
-import { clsx } from 'clsx'
+import { api } from '@/services/api'
+
+// ── Constants ──────────────────────────────────────────────────────────────
 
 const PERIODS = [
   { label: '7d',  days: 7 },
@@ -16,10 +26,364 @@ const PERIODS = [
   { label: '90d', days: 90 },
 ]
 
+const TOOLTIP_STYLE = {
+  backgroundColor: '#1e293b', border: '1px solid #334155',
+  borderRadius: '8px', color: '#e2e8f0', fontSize: '12px',
+}
+const AXIS_TICK = { fill: '#64748b', fontSize: 11 }
+
+// ── Chart catalog ──────────────────────────────────────────────────────────
+
+interface ChartDef {
+  id: string
+  label: string
+  description: string
+  defaultEnabled: boolean
+}
+
+const CHART_CATALOG: ChartDef[] = [
+  { id: 'daily_breakdown',   label: 'Daily Breakdown',    description: 'Stacked bar of passed/failed/skipped per day',  defaultEnabled: true  },
+  { id: 'pass_rate_trend',   label: 'Pass Rate Trend',    description: 'Daily pass rate % line chart',                  defaultEnabled: true  },
+  { id: 'cumulative_volume', label: 'Cumulative Volume',  description: 'Total test volume growth area chart',           defaultEnabled: true  },
+  { id: 'failure_rate',      label: 'Failure Rate',       description: 'Daily failure rate % over time',               defaultEnabled: false },
+  { id: 'broken_trend',      label: 'Broken Tests',       description: 'Broken test count trend bar chart',            defaultEnabled: false },
+  { id: 'skipped_trend',     label: 'Skipped Trend',      description: 'Skipped test count trend over time',           defaultEnabled: false },
+  { id: 'status_pie',        label: 'Status Distribution',description: 'Pie chart of overall status distribution',     defaultEnabled: false },
+]
+
+const STORAGE_KEY = 'qainsight_trend_charts'
+
+function loadEnabledCharts(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) return JSON.parse(stored)
+  } catch {}
+  return CHART_CATALOG.filter(c => c.defaultEnabled).map(c => c.id)
+}
+
+function saveEnabledCharts(ids: string[]) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ids)) } catch {}
+}
+
+// ── Individual chart components ────────────────────────────────────────────
+
+interface ChartProps { data: TrendPoint[]; height?: number }
+
+function DailyBreakdownChart({ data, height = 300 }: ChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} barSize={18} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12 }} />
+        <Bar dataKey="passed"  stackId="a" fill="#10b981" name="Passed"  />
+        <Bar dataKey="failed"  stackId="a" fill="#ef4444" name="Failed"  />
+        <Bar dataKey="skipped" stackId="a" fill="#f59e0b" name="Skipped" />
+        <Bar dataKey="broken"  stackId="a" fill="#f97316" name="Broken"  radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function PassRateTrendChart({ data, height = 240 }: ChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={AXIS_TICK} unit="%" />
+        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, 'Pass Rate']} />
+        <Line type="monotone" dataKey="pass_rate" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Pass Rate %" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function CumulativeVolumeChart({ data, height = 240 }: ChartProps) {
+  const derived = data.map(d => ({
+    ...d,
+    total: d.passed + d.failed + d.skipped + d.broken,
+  }))
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={derived} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <defs>
+          <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}   />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Area type="monotone" dataKey="total"  stroke="#3b82f6" fill="url(#totalGrad)" strokeWidth={2} name="Total Tests" />
+        <Area type="monotone" dataKey="passed" stroke="#10b981" fill="transparent"    strokeWidth={1.5} name="Passed" />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+function FailureRateChart({ data, height = 240 }: ChartProps) {
+  const derived = data.map(d => {
+    const total = d.passed + d.failed + d.skipped + d.broken
+    return { ...d, failure_rate: total > 0 ? Number(((d.failed + d.broken) / total * 100).toFixed(1)) : 0 }
+  })
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={derived} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={AXIS_TICK} unit="%" />
+        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, 'Failure Rate']} />
+        <Line type="monotone" dataKey="failure_rate" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Failure Rate %" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function BrokenTrendChart({ data, height = 240 }: ChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} barSize={18} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Bar dataKey="broken" fill="#f97316" name="Broken Tests" radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function SkippedTrendChart({ data, height = 240 }: ChartProps) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={AXIS_TICK} dy={8} />
+        <YAxis axisLine={false} tickLine={false} tick={AXIS_TICK} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Line type="monotone" dataKey="skipped" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} name="Skipped" strokeDasharray="4 2" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function StatusPieChart({ data, height = 240 }: ChartProps) {
+  const totals = data.reduce(
+    (acc, d) => ({
+      passed:  acc.passed  + d.passed,
+      failed:  acc.failed  + d.failed,
+      skipped: acc.skipped + d.skipped,
+      broken:  acc.broken  + (d.broken ?? 0),
+    }),
+    { passed: 0, failed: 0, skipped: 0, broken: 0 },
+  )
+  const pieData = [
+    { name: 'Passed',  value: totals.passed,  fill: '#10b981' },
+    { name: 'Failed',  value: totals.failed,  fill: '#ef4444' },
+    { name: 'Skipped', value: totals.skipped, fill: '#f59e0b' },
+    { name: 'Broken',  value: totals.broken,  fill: '#f97316' },
+  ].filter(d => d.value > 0)
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <PieChart>
+        <Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+          {pieData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
+        </Pie>
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+function renderChart(id: string, data: TrendPoint[]) {
+  switch (id) {
+    case 'daily_breakdown':   return <DailyBreakdownChart data={data} />
+    case 'pass_rate_trend':   return <PassRateTrendChart data={data} />
+    case 'cumulative_volume': return <CumulativeVolumeChart data={data} />
+    case 'failure_rate':      return <FailureRateChart data={data} />
+    case 'broken_trend':      return <BrokenTrendChart data={data} />
+    case 'skipped_trend':     return <SkippedTrendChart data={data} />
+    case 'status_pie':        return <StatusPieChart data={data} />
+    default: return null
+  }
+}
+
+// ── Email modal ────────────────────────────────────────────────────────────
+
+interface EmailModalProps {
+  onClose: () => void
+  projectId: string
+  days: number
+  enabledCharts: string[]
+}
+
+function EmailModal({ onClose, projectId, days, enabledCharts }: EmailModalProps) {
+  const [email, setEmail] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function handleSend() {
+    if (!email.trim()) { toast.error('Enter a recipient email'); return }
+    setSending(true)
+    try {
+      await api.post('/api/v1/reports/email-trends', {
+        project_id: projectId,
+        days,
+        recipient_email: email.trim(),
+        chart_ids: enabledCharts,
+      })
+      toast.success('Report sent successfully')
+      onClose()
+    } catch {
+      toast.error('Failed to send report — check SMTP settings')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-100">Email Trends Report</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">
+          Send a snapshot of the current trend data ({days}-day period, {enabledCharts.length} chart{enabledCharts.length !== 1 ? 's' : ''}) to an email address.
+        </p>
+        <label className="block text-xs text-slate-400 mb-1">Recipient Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-4"
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+        />
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Cancel</button>
+          <button
+            onClick={handleSend}
+            disabled={sending}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2"
+          >
+            {sending ? <LoadingSpinner size="sm" /> : <Mail className="h-4 w-4" />}
+            {sending ? 'Sending…' : 'Send Report'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Chart picker modal ─────────────────────────────────────────────────────
+
+interface ChartPickerProps {
+  enabled: string[]
+  onToggle: (id: string) => void
+  onClose: () => void
+}
+
+function ChartPickerModal({ enabled, onToggle, onClose }: ChartPickerProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-100">Customize Charts</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">Select which charts to display on the Trends page.</p>
+        <div className="space-y-2">
+          {CHART_CATALOG.map(chart => (
+            <div
+              key={chart.id}
+              className={clsx(
+                'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                enabled.includes(chart.id)
+                  ? 'border-blue-500/50 bg-blue-500/10'
+                  : 'border-slate-700 bg-slate-800/50 hover:border-slate-600',
+              )}
+              onClick={() => onToggle(chart.id)}
+            >
+              <div className={clsx(
+                'h-4 w-4 rounded border-2 flex items-center justify-center flex-shrink-0',
+                enabled.includes(chart.id) ? 'border-blue-500 bg-blue-500' : 'border-slate-600',
+              )}>
+                {enabled.includes(chart.id) && (
+                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 12 12">
+                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-200">{chart.label}</p>
+                <p className="text-xs text-slate-500">{chart.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium">Done</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
+
 export default function TrendsPage() {
-  const [days, setDays] = useState(30)
-  const project = useProjectStore(s => s.activeProject)
+  const [days, setDays]           = useState(30)
+  const [enabledCharts, setEnabled] = useState<string[]>(loadEnabledCharts)
+  const [showPicker, setShowPicker] = useState(false)
+  const [showEmail, setShowEmail]   = useState(false)
+  const printRef = useRef<HTMLDivElement>(null)
+
+  const project   = useProjectStore(s => s.activeProject)
+  const projectId = useProjectStore(s => s.activeProjectId)
   const { data: trends, isLoading } = useTrendData(days)
+
+  useEffect(() => { saveEnabledCharts(enabledCharts) }, [enabledCharts])
+
+  function toggleChart(id: string) {
+    setEnabled(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id],
+    )
+  }
+
+  function removeChart(id: string) {
+    setEnabled(prev => prev.filter(c => c !== id))
+  }
+
+  function handlePrint() {
+    // Force recharts to re-render at full width before print dialog opens.
+    // We temporarily mark each chart wrapper with an explicit pixel width so
+    // ResponsiveContainer can measure a real size instead of 0.
+    const containers = document.querySelectorAll<HTMLElement>('.recharts-responsive-container')
+
+    // Snapshot sidebar/main widths and force print-width layout
+    const savedWidths: string[] = []
+    containers.forEach((el, i) => {
+      savedWidths[i] = el.style.width
+      el.style.width = `${el.offsetParent ? (el.offsetParent as HTMLElement).clientWidth || 700 : 700}px`
+    })
+
+    // Dispatch resize so ResponsiveContainer re-measures
+    window.dispatchEvent(new Event('resize'))
+
+    setTimeout(() => {
+      window.print()
+      // Restore
+      containers.forEach((el, i) => { el.style.width = savedWidths[i] })
+      window.dispatchEvent(new Event('resize'))
+    }, 400)
+  }
 
   if (!project) {
     return (
@@ -41,72 +405,188 @@ export default function TrendsPage() {
     ? (trendData.reduce((s: number, d: TrendPoint) => s + d.pass_rate, 0) / trendData.length).toFixed(1)
     : '—'
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Trends"
-        subtitle={`Historical pass/fail rates for ${project.name}`}
-        actions={
-          <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
-            {PERIODS.map(({ label, days: d }) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={clsx(
-                  'px-3 py-1 rounded-md text-sm font-medium transition-colors',
-                  days === d ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-100',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        }
-      />
+  const availableToAdd = CHART_CATALOG.filter(c => !enabledCharts.includes(c.id))
 
-      {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: 'Avg Pass Rate', value: `${avgPassRate}%`, color: 'text-emerald-400' },
-          { label: 'Total Passed',  value: totalPassed,       color: 'text-emerald-400' },
-          { label: 'Total Failed',  value: totalFailed,       color: 'text-red-400'     },
-          { label: 'Total Skipped', value: totalSkipped,      color: 'text-amber-400'   },
-          { label: 'Total Broken',  value: totalBroken,       color: 'text-orange-400'  },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="card py-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wider">{label}</p>
-            <p className={clsx('text-2xl font-bold tabular-nums mt-1', color)}>{value}</p>
-          </div>
-        ))}
+  return (
+    <>
+      {/* Modals */}
+      {showPicker && (
+        <ChartPickerModal enabled={enabledCharts} onToggle={toggleChart} onClose={() => setShowPicker(false)} />
+      )}
+      {showEmail && projectId && (
+        <EmailModal onClose={() => setShowEmail(false)} projectId={projectId} days={days} enabledCharts={enabledCharts} />
+      )}
+
+      <div className="space-y-6 print:space-y-4" ref={printRef}>
+        <PageHeader
+          title="Trends"
+          subtitle={`Historical trends for ${project.name}`}
+          actions={
+            <div className="flex items-center gap-2 print:hidden">
+              {/* Period selector */}
+              <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+                {PERIODS.map(({ label, days: d }) => (
+                  <button
+                    key={d}
+                    onClick={() => setDays(d)}
+                    className={clsx(
+                      'px-3 py-1 rounded-md text-sm font-medium transition-colors',
+                      days === d ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-100',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* Customize */}
+              <button
+                onClick={() => setShowPicker(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Customize
+              </button>
+              {/* Export PDF */}
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export PDF
+              </button>
+              {/* Email */}
+              <button
+                onClick={() => setShowEmail(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Email Report
+              </button>
+            </div>
+          }
+        />
+
+        {/* Summary strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            { label: 'Avg Pass Rate', value: `${avgPassRate}%`, color: 'text-emerald-400' },
+            { label: 'Total Passed',  value: totalPassed,       color: 'text-emerald-400' },
+            { label: 'Total Failed',  value: totalFailed,       color: 'text-red-400'     },
+            { label: 'Total Skipped', value: totalSkipped,      color: 'text-amber-400'   },
+            { label: 'Total Broken',  value: totalBroken,       color: 'text-orange-400'  },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="card py-3">
+              <p className="text-xs text-slate-500 uppercase tracking-wider">{label}</p>
+              <p className={clsx('text-2xl font-bold tabular-nums mt-1', color)}>{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts */}
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
+        ) : trendData.length === 0 ? (
+          <EmptyState
+            icon={<TrendingUp className="h-8 w-8" />}
+            title="No trend data yet"
+            description="Run some tests to see trends over time"
+          />
+        ) : (
+          <>
+            <div className="space-y-4">
+              {enabledCharts.map(chartId => {
+                const def = CHART_CATALOG.find(c => c.id === chartId)
+                if (!def) return null
+                return (
+                  <div key={chartId} className="card relative group">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-slate-200">{def.label}</h3>
+                      <button
+                        onClick={() => removeChart(chartId)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all print:hidden"
+                        title="Remove chart"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {renderChart(chartId, trendData)}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Add chart button */}
+            {availableToAdd.length > 0 && (
+              <div className="print:hidden">
+                <button
+                  onClick={() => setShowPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl text-slate-500 hover:text-slate-300 transition-colors text-sm font-medium"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Chart ({availableToAdd.length} available)
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Charts */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64"><LoadingSpinner size="lg" /></div>
-      ) : trendData.length === 0 ? (
-        <EmptyState
-          icon={<TrendingUp className="h-8 w-8" />}
-          title="No trend data yet"
-          description="Run some tests to see pass/fail trends over time"
-        />
-      ) : (
-        <div className="space-y-4">
-          <div className="card">
-            <h3 className="text-sm font-semibold text-slate-200 mb-4">Pass / Fail / Skip — Daily Breakdown</h3>
-            <TrendChart data={trendData} type="bar" height={300} />
-          </div>
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { background: white !important; color: #1e293b !important; margin: 0; }
+          .print\\:hidden { display: none !important; }
 
-          <div className="card">
-            <h3 className="text-sm font-semibold text-slate-200 mb-4">Pass Rate Trend (%)</h3>
-            <TrendChart data={trendData} type="line" height={240} />
-          </div>
+          /* Hide nav / sidebar / topbar */
+          nav, aside, [data-sidebar], [data-topbar] { display: none !important; }
 
-          <div className="card">
-            <h3 className="text-sm font-semibold text-slate-200 mb-4">Cumulative Test Volume</h3>
-            <TrendChart data={trendData} type="area" height={240} />
-          </div>
-        </div>
-      )}
-    </div>
+          /* Force full-width layout */
+          main, [data-main] { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+
+          /* Card styling */
+          .card {
+            border: 1px solid #cbd5e1 !important;
+            background: white !important;
+            color: #1e293b !important;
+            box-shadow: none !important;
+            margin-bottom: 16px !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          /* Summary strip text */
+          .card p { color: #1e293b !important; }
+
+          /* Recharts: force explicit dimensions so charts don't vanish */
+          .recharts-responsive-container {
+            width: 100% !important;
+            min-height: 260px !important;
+          }
+          .recharts-wrapper {
+            width: 100% !important;
+          }
+          .recharts-surface {
+            overflow: visible !important;
+          }
+
+          /* Ensure grid is full-width */
+          .grid { display: grid !important; }
+
+          /* Page breaks */
+          h3 { color: #0f172a !important; }
+
+          /* Print title */
+          body::before {
+            content: "QA Insight — Trends Report";
+            display: block;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #0f172a;
+          }
+        }
+      `}</style>
+    </>
   )
 }

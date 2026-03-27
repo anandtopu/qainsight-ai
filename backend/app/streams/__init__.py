@@ -21,6 +21,14 @@ LIVE_ACTIVE_SET = "qainsight:live:active"           # Set of active run IDs
 DEDUP_KEY       = "qainsight:dedup:{task}:{key}"    # Deduplication locks
 CIRCUIT_KEY     = "qainsight:circuit:llm"           # Circuit breaker state
 
+# Live session management keys
+SESSION_TOKEN_KEY = "qainsight:session:token:{token}"   # token → session_id (TTL: 24h)
+SESSION_ACTIVE_KEY = "qainsight:session:active"         # Set of active session IDs
+
+# Per-run buffer for individual test results (Redis List, max 24h TTL)
+# Written by LiveEventStreamConsumer; drained by persist_live_session Celery task.
+LIVE_TESTCASES_KEY = "qainsight:live:testcases:{run_id}"
+
 # ── Limits ────────────────────────────────────────────────────────────────────
 LIVE_STREAM_MAXLEN      = 100_000   # max entries retained in live stream
 INGESTION_STREAM_MAXLEN = 10_000

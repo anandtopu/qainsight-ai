@@ -142,6 +142,24 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
             # ── Update run aggregates ──────────────────────
             await _update_run_aggregates(db, run.id)
 
+            # ── Link to release (auto-create if new) ───────
+            if sentinel.release_name and sentinel.release_name.strip():
+                try:
+                    from app.services.release_linker import auto_link_release
+                    _release, _created = await auto_link_release(
+                        db=db,
+                        project_id=run.project_id,
+                        release_name=sentinel.release_name.strip(),
+                        test_run_id=run.id,
+                    )
+                    if _created:
+                        logger.info(
+                            "Auto-created release '%s' for run %s",
+                            sentinel.release_name, run.id,
+                        )
+                except Exception as rel_err:
+                    logger.warning("Release linking failed for run %s: %s", run.id, rel_err)
+
             await db.commit()
             logger.info(f"Ingestion complete: {len(parsed_cases)} test cases processed")
 
@@ -156,7 +174,7 @@ async def process_sentinel(sentinel: SentinelFile, minio_prefix: str) -> None:
                     "passed_tests": run.passed_tests,
                     "failed_tests": run.failed_tests,
                     "pass_rate": run.pass_rate,
-                    "status": run.status.value if run.status else None,
+                    "status": getattr(run.status, "value", run.status),
                 })
             except Exception as ws_err:
                 logger.debug(f"WS broadcast skipped: {ws_err}")

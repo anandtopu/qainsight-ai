@@ -18,4 +18,9 @@ export const analyticsService = {
 
   getAiSummary: (projectId: string, days = 30) =>
     api.get('/api/v1/analytics/ai-summary', { params: { project_id: projectId, days } }).then(r => r.data),
+
+  getSuiteDetail: (projectId: string, suiteName: string, days = 30) =>
+    api.get('/api/v1/analytics/suite-detail', {
+      params: { project_id: projectId, suite_name: suiteName, days },
+    }).then(r => r.data),
 }

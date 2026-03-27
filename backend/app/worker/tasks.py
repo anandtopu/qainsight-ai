@@ -42,6 +42,186 @@ async def _is_duplicate(key: str, ttl: int = 3600) -> bool:
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
 @celery_app.task(
+    name="app.worker.tasks.persist_live_session",
+    bind=True,
+    max_retries=3,
+    queue="ingestion",
+)
+def persist_live_session(
+    self,
+    run_id: str,
+    project_id: str,
+    build_number: str,
+    client_name: str = "",
+    framework: str = "",
+    branch: str = "",
+    commit_hash: str = "",
+    final_state: dict | None = None,
+):
+    """
+    Persist a completed live execution session to PostgreSQL.
+
+    Reads the test-event buffer from Redis (LIVE_TESTCASES_KEY) and creates:
+      - One TestRun row (with aggregated counts from final_state / Redis data)
+      - One TestCase row per event
+
+    Called by DELETE /api/v1/stream/sessions/{session_id} after run_complete.
+    Deduplicates by run_id so retries are safe.
+    """
+    import hashlib
+    import json
+    import uuid as _uuid_mod
+    from datetime import datetime, timezone
+
+    dedup_key = f"qainsight:dedup:live_persist:{run_id}"
+    final_state = final_state or {}
+
+    async def _run():
+        if await _is_duplicate(dedup_key, ttl=3600):
+            logger.info("[Task %s] Skipping duplicate live persist for %s", self.request.id, run_id)
+            return
+
+        from app.db.redis_client import get_redis
+        from app.streams import LIVE_TESTCASES_KEY
+        from app.db.postgres import AsyncSessionLocal
+        from app.models.postgres import (
+            LaunchStatus, TestCase, TestRun, TestStatus,
+        )
+
+        redis = get_redis()
+        list_key = LIVE_TESTCASES_KEY.format(run_id=run_id)
+
+        # ── Read buffered test events ─────────────────────────────────────────
+        raw_entries = await redis.lrange(list_key, 0, -1)
+        events = []
+        for raw in raw_entries:
+            try:
+                events.append(json.loads(raw))
+            except Exception:
+                pass
+
+        logger.info(
+            "[Task %s] Persisting live session: run=%s events=%d",
+            self.request.id, run_id, len(events),
+        )
+
+        # ── Compute aggregate counts ──────────────────────────────────────────
+        passed  = sum(1 for e in events if (e.get("status") or "").upper() == "PASSED")
+        failed  = sum(1 for e in events if (e.get("status") or "").upper() == "FAILED")
+        skipped = sum(1 for e in events if (e.get("status") or "").upper() == "SKIPPED")
+        broken  = sum(1 for e in events if (e.get("status") or "").upper() == "BROKEN")
+        total   = len(events) or final_state.get("total", 0)
+
+        # Fall back to Redis final_state if events are missing (e.g. buffer expired)
+        if not events:
+            passed  = final_state.get("passed",  0)
+            failed  = final_state.get("failed",  0)
+            skipped = final_state.get("skipped", 0)
+            broken  = final_state.get("broken",  0)
+            total   = final_state.get("total",   0)
+
+        pass_rate = round(passed / (passed + failed + broken) * 100, 2) if (passed + failed + broken) > 0 else None
+        run_status = LaunchStatus.FAILED if (failed + broken) > 0 else LaunchStatus.PASSED
+
+        # ── Resolve project UUID ──────────────────────────────────────────────
+        try:
+            proj_uuid = _uuid_mod.UUID(project_id)
+        except ValueError:
+            logger.error("[Task %s] Invalid project_id %s — aborting", self.request.id, project_id)
+            return
+
+        # ── Resolve run UUID (use run_id if it looks like a UUID, else generate) ──
+        try:
+            run_uuid = _uuid_mod.UUID(run_id)
+        except ValueError:
+            run_uuid = _uuid_mod.uuid5(_uuid_mod.NAMESPACE_DNS, run_id)
+
+        now = datetime.now(timezone.utc)
+
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+
+            # Upsert TestRun — skip if already exists (idempotent)
+            existing = await db.execute(select(TestRun).where(TestRun.id == run_uuid))
+            run = existing.scalar_one_or_none()
+
+            if run is None:
+                run = TestRun(
+                    id=run_uuid,
+                    project_id=proj_uuid,
+                    build_number=build_number,
+                    trigger_source="live_stream",
+                    branch=branch or None,
+                    commit_hash=commit_hash or None,
+                    status=run_status,
+                    total_tests=total,
+                    passed_tests=passed,
+                    failed_tests=failed,
+                    skipped_tests=skipped,
+                    broken_tests=broken,
+                    pass_rate=pass_rate,
+                    start_time=now,
+                    end_time=now,
+                )
+                db.add(run)
+                await db.flush()   # assigns DB id before we reference it in TestCase FKs
+            else:
+                # Update aggregates on the existing row
+                run.status       = run_status
+                run.total_tests  = total
+                run.passed_tests = passed
+                run.failed_tests = failed
+                run.skipped_tests = skipped
+                run.broken_tests  = broken
+                run.pass_rate     = pass_rate
+                run.end_time      = now
+
+            # ── Insert TestCase rows ──────────────────────────────────────────
+            for event in events:
+                test_name  = event.get("test_name") or ""
+                class_name = event.get("class_name") or ""
+                raw_status = (event.get("status") or "UNKNOWN").upper()
+
+                try:
+                    tc_status = TestStatus(raw_status)
+                except ValueError:
+                    tc_status = TestStatus.UNKNOWN
+
+                fingerprint = hashlib.md5(
+                    f"{test_name}:{class_name}".encode()
+                ).hexdigest()
+
+                tc = TestCase(
+                    id=_uuid_mod.uuid4(),
+                    test_run_id=run.id,
+                    test_fingerprint=fingerprint,
+                    test_name=test_name[:1000],
+                    suite_name=(event.get("suite_name") or "")[:500] or None,
+                    class_name=class_name[:500] or None,
+                    status=tc_status,
+                    duration_ms=event.get("duration_ms"),
+                    error_message=event.get("error_message"),
+                    tags=event.get("tags"),
+                )
+                db.add(tc)
+
+            await db.commit()
+            logger.info(
+                "[Task %s] Persisted run=%s tests=%d passed=%d failed=%d",
+                self.request.id, run_id, total, passed, failed,
+            )
+
+        # ── Clean up Redis buffer ─────────────────────────────────────────────
+        await redis.delete(list_key)
+
+    try:
+        _run_async(_run())
+    except Exception as exc:
+        logger.error("[Task %s] persist_live_session failed: %s", self.request.id, exc)
+        raise self.retry(exc=exc, countdown=_exponential_backoff(self.request.retries))
+
+
+@celery_app.task(
     name="app.worker.tasks.ingest_test_run",
     bind=True,
     max_retries=3,

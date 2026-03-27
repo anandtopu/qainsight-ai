@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, Layers, TestTube } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -47,6 +48,7 @@ interface SuiteRow {
 
 export default function CoveragePage() {
   const [days, setDays] = useState(30)
+  const navigate = useNavigate()
   const project = useProjectStore(s => s.activeProject)
   const { data: coverageData, isLoading } = useCoverage(days)
 
@@ -157,8 +159,12 @@ export default function CoveragePage() {
                 </thead>
                 <tbody>
                   {suites.map((s) => (
-                    <tr key={s.suite_name} className="table-row">
-                      <td className="td font-medium text-slate-200 max-w-[240px] truncate">{s.suite_name}</td>
+                    <tr
+                      key={s.suite_name}
+                      className="table-row cursor-pointer hover:bg-slate-700/50"
+                      onClick={() => navigate(`/coverage/suite?name=${encodeURIComponent(s.suite_name)}&days=${days}`)}
+                    >
+                      <td className="td font-medium text-blue-400 hover:text-blue-300 max-w-[240px] truncate">{s.suite_name}</td>
                       <td className="td text-right tabular-nums text-slate-300">{s.unique_tests}</td>
                       <td className="td text-right tabular-nums text-emerald-400">{s.passed}</td>
                       <td className="td text-right tabular-nums text-red-400">{s.failed}</td>

@@ -1,6 +1,14 @@
 import { useCallback, useState } from 'react'
-import useSWR from 'swr'
-import chatService, { ChatMessage, ChatSession } from '@/services/chatService'
+import useSWR, { mutate as globalMutate } from 'swr'
+import chatService, { ChatMessage, ChatSession, RunSummary } from '@/services/chatService'
+
+export function useRunSummaries(projectId?: string | null, days = 5) {
+  return useSWR<RunSummary[]>(
+    ['run-summaries', projectId, days],
+    () => chatService.getRunSummaries(projectId, days).then((r) => r.data),
+    { revalidateOnFocus: false, refreshInterval: 60_000 },
+  )
+}
 
 export function useChatSessions() {
   return useSWR<ChatSession[]>(
@@ -27,7 +35,7 @@ interface UseChatReturn {
 }
 
 export function useChat(sessionId: string | null, projectId?: string | null): UseChatReturn {
-  const { data: fetchedMessages = [], mutate } = useChatMessages(sessionId)
+  const { data: fetchedMessages = [] } = useChatMessages(sessionId)
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +80,10 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
         setOptimisticMessages((prev) =>
           prev.filter((m) => m.id !== tempAssistantMsg.id && m.id !== tempUserMsg.id),
         )
-        await mutate()
+        // Use globalMutate with the actual session key — avoids the stale-closure
+        // problem where mutate() from useChatMessages(null) is a no-op when the
+        // session was just auto-created before this hook re-rendered with the new ID.
+        await globalMutate(`/chat/sessions/${sid}/messages`)
       } catch (err: unknown) {
         setOptimisticMessages((prev) =>
           prev.filter((m) => m.id !== tempAssistantMsg.id),
@@ -83,7 +94,7 @@ export function useChat(sessionId: string | null, projectId?: string | null): Us
         setIsSending(false)
       }
     },
-    [sessionId, projectId, isSending, mutate],
+    [sessionId, projectId, isSending],
   )
 
   return {

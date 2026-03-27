@@ -36,7 +36,7 @@ class RedisLiveRunState:
     """
 
     @classmethod
-    async def start(cls, run_id: str, project_id: str, build_number: str) -> None:
+    async def start(cls, run_id: str, project_id: str, build_number: str, total_tests: int = 0) -> None:
         """Register a new live run. Idempotent — safe to call if run already exists."""
         redis = get_redis()
         key = _STATE_KEY(run_id)
@@ -46,7 +46,7 @@ class RedisLiveRunState:
             "run_id":       run_id,
             "project_id":   project_id,
             "build_number": build_number,
-            "total":        0,
+            "total":        total_tests,
             "passed":       0,
             "failed":       0,
             "skipped":      0,

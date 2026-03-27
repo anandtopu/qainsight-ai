@@ -100,7 +100,7 @@ class IngestionAgent(BaseAgent):
                 "broken_tests": run.broken_tests,
                 "pass_rate": run.pass_rate,
                 "duration_ms": run.duration_ms,
-                "status": run.status.value if run.status else "UNKNOWN",
+                "status": getattr(run.status, "value", run.status) or "UNKNOWN",
             }
             failed_ids = [str(row.id) for row in failed_rows]
 

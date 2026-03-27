@@ -39,6 +39,7 @@ from app.streams import (
     DLQ_STREAM,
     LIVE_EVENTS_STREAM,
     LIVE_GROUP,
+    LIVE_TESTCASES_KEY,
     MAX_DELIVERY_ATTEMPTS,
     STALE_CLAIM_INTERVAL_S,
     STALE_IDLE_MS,
@@ -155,6 +156,10 @@ class LiveEventStreamConsumer:
         state = await RedisLiveRunState.record_test_event(run_id, status, test_name, total)
         if state is None:
             return  # Unknown run — ignore
+
+        # Buffer this test event in Redis List for later DB persistence.
+        # The persist_live_session Celery task drains this list when the session completes.
+        await self._buffer_test_event(run_id, payload)
 
         # Broadcast incremental update
         await _broadcast(state["project_id"], {
@@ -297,14 +302,49 @@ class LiveEventStreamConsumer:
         )
 
 
+    # ── Test event buffer ────────────────────────────────────────────────────
+
+    async def _buffer_test_event(self, run_id: str, payload: dict) -> None:
+        """Append a minimal test-result snapshot to the per-run Redis List.
+        Used by persist_live_session to recreate TestCase rows after run completion.
+        List TTL: 25 h — cleaned up by the Celery task on success.
+        """
+        try:
+            redis = get_redis()
+            entry = json.dumps({
+                "test_name":     payload.get("test_name", ""),
+                "status":        payload.get("status", "UNKNOWN"),
+                "duration_ms":   payload.get("duration_ms", 0),
+                "suite_name":    payload.get("suite_name"),
+                "class_name":    payload.get("class_name"),
+                "error_message": payload.get("error_message"),
+                "stack_trace":   payload.get("stack_trace"),
+                "tags":          payload.get("tags"),
+                "timestamp_ms":  payload.get("timestamp_ms"),
+            })
+            key = LIVE_TESTCASES_KEY.format(run_id=run_id)
+            await redis.rpush(key, entry)
+            await redis.expire(key, 90_000)   # 25 h
+        except Exception as exc:
+            logger.debug("Failed to buffer test event for run %s: %s", run_id, exc)
+
+
 # ── Module-level helpers ──────────────────────────────────────────────────────
 
 async def _broadcast(project_id: str, payload: dict) -> None:
+    # Fan-out to WebSocket dashboard clients
     try:
         from app.routers.live import manager
         await manager.broadcast(project_id, payload)
     except Exception as exc:
         logger.debug("WebSocket broadcast skipped: %s", exc)
+
+    # Fan-out to SSE dashboard clients (same payload, different transport)
+    try:
+        from app.routers.stream import push_to_sse
+        await push_to_sse(project_id, payload)
+    except Exception as exc:
+        logger.debug("SSE broadcast skipped: %s", exc)
 
 
 async def _queue_live_analysis(

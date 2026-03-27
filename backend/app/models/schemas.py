@@ -209,6 +209,9 @@ class SentinelFile(BaseModel):
     commit_hash: Optional[str] = None
     ocp_pod_name: Optional[str] = None
     ocp_namespace: Optional[str] = None
+    # Optional: name of the software release this run belongs to.
+    # If the release does not exist it is auto-created in "planning" status.
+    release_name: Optional[str] = None
 
 
 # ── AI Analysis Schemas ───────────────────────────────────────
@@ -830,3 +833,92 @@ class AITaskStatusResponse(BaseModel):
     status: str  # pending | success | failure
     result: Optional[dict] = None
     error: Optional[str] = None
+
+
+# ── Live Stream Schemas ───────────────────────────────────────────────────────
+
+class LiveSessionCreate(BaseModel):
+    """Request body to register a new live execution session."""
+    project_id: uuid.UUID
+    run_id: Optional[str] = None           # auto-generated if omitted
+    client_name: str = Field(..., min_length=1, max_length=255)
+    machine_id: Optional[str] = Field(None, max_length=255)
+    build_number: Optional[str] = Field(None, max_length=100)
+    framework: Optional[str] = Field(None, max_length=50)  # pytest|junit|testng|mocha|…
+    branch: Optional[str] = Field(None, max_length=255)
+    commit_hash: Optional[str] = Field(None, max_length=64)
+    total_tests: Optional[int] = Field(None, ge=0)
+    metadata: Optional[dict] = None
+    # Optional: name of the release this execution belongs to.
+    # Auto-created in "planning" status if it does not exist in the project.
+    release_name: Optional[str] = Field(None, max_length=255)
+
+
+class LiveSessionResponse(BaseModel):
+    """Response returned when a session is created."""
+    session_id: str
+    session_token: str    # plaintext token — client stores this for X-Session-Token header
+    run_id: str
+    project_id: str
+    expires_in: int       # seconds until token expires
+    created_at: datetime
+
+
+class LiveEvent(BaseModel):
+    """A single test execution event from a client machine."""
+    event_type: str = Field(
+        ...,
+        description="run_start | test_start | test_result | log | metric | run_complete",
+    )
+    test_name: Optional[str] = Field(None, max_length=1000)
+    status: Optional[str] = Field(None, description="PASSED | FAILED | SKIPPED | BROKEN")
+    duration_ms: Optional[int] = Field(None, ge=0)
+    error_message: Optional[str] = None
+    stack_trace: Optional[str] = None
+    suite_name: Optional[str] = Field(None, max_length=500)
+    class_name: Optional[str] = Field(None, max_length=500)
+    tags: Optional[List[str]] = None
+    # Client-side unix epoch ms — preserved for ordering; falls back to server time if absent
+    timestamp_ms: Optional[int] = None
+    metadata: Optional[dict] = None
+
+
+class LiveEventBatch(BaseModel):
+    """
+    A batch of events sent from a client machine.
+    Batching amortises HTTP overhead — 50–1000 events per call is recommended.
+    """
+    session_id: str
+    run_id: str
+    events: List[LiveEvent] = Field(..., min_length=1, max_length=1000)
+
+
+class LiveEventBatchResponse(BaseModel):
+    accepted: int
+    run_id: str
+    session_id: str
+
+
+class LiveSessionState(BaseModel):
+    """Live state of an active or recently completed session."""
+    run_id: str
+    project_id: str
+    build_number: str
+    status: str
+    total: int
+    passed: int
+    failed: int
+    skipped: int
+    broken: int
+    pass_rate: float
+    current_test: Optional[str] = None
+    started_at: Optional[str] = None
+    last_event_at: Optional[str] = None
+    client_name: Optional[str] = None
+    completed_at: Optional[str] = None
+    release_name: Optional[str] = None
+
+
+class ActiveSessionsResponse(BaseModel):
+    sessions: List[LiveSessionState]
+    count: int

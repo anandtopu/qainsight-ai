@@ -832,6 +832,44 @@ class TestStrategy(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
+class LiveSession(Base):
+    """
+    Tracks an active live test execution session from a client machine.
+
+    Client machines register a session before streaming events.
+    The session_token (stored as a SHA-256 hash here; plaintext lives in Redis)
+    is used for lightweight authentication on the hot-path batch endpoint —
+    avoiding JWT decode + DB query overhead at 10k+ concurrent sessions.
+    """
+    __tablename__ = "live_sessions"
+    __table_args__ = (
+        Index("ix_live_sessions_project_status", "project_id", "status"),
+        Index("ix_live_sessions_token_hash", "session_token_hash"),
+        Index("ix_live_sessions_started_at", "started_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    client_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    machine_id: Mapped[Optional[str]] = mapped_column(String(255))
+    build_number: Mapped[Optional[str]] = mapped_column(String(100))
+    framework: Mapped[Optional[str]] = mapped_column(String(50))
+    branch: Mapped[Optional[str]] = mapped_column(String(255))
+    commit_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    # SHA-256 hash of the plaintext session token (never store plaintext)
+    session_token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)  # active|completed|stale
+    release_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    total_tests: Mapped[int] = mapped_column(Integer, default=0)
+    events_received: Mapped[int] = mapped_column(Integer, default=0)
+    extra_metadata: Mapped[Optional[dict]] = mapped_column(JSON)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_event_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class TestCaseAuditLog(Base):
     """Immutable compliance audit trail for all test management actions."""
     __tablename__ = "test_case_audit_logs"
@@ -859,3 +897,96 @@ class TestCaseAuditLog(Base):
     details: Mapped[Optional[str]] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ── Release Management ────────────────────────────────────────────────────────
+
+class Release(Base):
+    """A software release tracked through the QA lifecycle."""
+    __tablename__ = "releases"
+    __table_args__ = (
+        Index("ix_releases_project_status", "project_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[Optional[str]] = mapped_column(String(100))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Status: planning|in_progress|released|cancelled
+    status: Mapped[str] = mapped_column(String(30), default="planning")
+
+    # Target/actual dates
+    planned_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Attribution
+    created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    # Relationships
+    phases: Mapped[list["ReleasePhase"]] = relationship(
+        "ReleasePhase", back_populates="release", cascade="all, delete-orphan",
+        order_by="ReleasePhase.order_index",
+    )
+    test_run_links: Mapped[list["ReleaseTestRunLink"]] = relationship(
+        "ReleaseTestRunLink", back_populates="release", cascade="all, delete-orphan",
+    )
+
+
+class ReleasePhase(Base):
+    """A phase / milestone within a Release lifecycle."""
+    __tablename__ = "release_phases"
+    __table_args__ = (
+        Index("ix_release_phases_release", "release_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("releases.id", ondelete="CASCADE"), nullable=False)
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Phase type: planning|development|code_freeze|qa_testing|uat|staging|production
+    phase_type: Mapped[str] = mapped_column(String(50), default="qa_testing")
+    # Status: pending|in_progress|completed|skipped
+    status: Mapped[str] = mapped_column(String(30), default="pending")
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+
+    planned_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    planned_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    actual_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    actual_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    # Quality criteria for this phase (pass_rate_threshold, max_open_defects, etc.)
+    exit_criteria: Mapped[Optional[dict]] = mapped_column(JSON)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    # Relationships
+    release: Mapped["Release"] = relationship("Release", back_populates="phases")
+
+
+class ReleaseTestRunLink(Base):
+    """Links a test run to a release for metrics aggregation."""
+    __tablename__ = "release_test_run_links"
+    __table_args__ = (
+        UniqueConstraint("release_id", "test_run_id", name="uq_release_test_run"),
+        Index("ix_rtr_links_release", "release_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    release_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("releases.id", ondelete="CASCADE"), nullable=False)
+    test_run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False)
+    phase_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("release_phases.id", ondelete="SET NULL"), nullable=True)
+
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    release: Mapped["Release"] = relationship("Release", back_populates="test_run_links")

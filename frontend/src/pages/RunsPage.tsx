@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GitBranch } from 'lucide-react'
+import { GitBranch, Package } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import StatusBadge from '@/components/ui/StatusBadge'
 import Pagination from '@/components/ui/Pagination'
@@ -23,6 +23,8 @@ interface TestRun {
   duration_ms?: number
   created_at: string
   ocp_pod_name?: string
+  release_name?: string
+  release_id?: string
 }
 
 export default function RunsPage() {
@@ -76,7 +78,7 @@ export default function RunsPage() {
             <table className="w-full">
               <thead className="border-b border-slate-800">
                 <tr>
-                  {['Build', 'Job', 'Branch', 'Status', 'Tests', 'Pass Rate', 'Duration', 'Started', ''].map(h => (
+                  {['Build', 'Job', 'Branch', 'Release', 'Status', 'Tests', 'Pass Rate', 'Duration', 'Started'].map(h => (
                     <th key={h} className="th">{h}</th>
                   ))}
                 </tr>
@@ -91,6 +93,20 @@ export default function RunsPage() {
                     <td className="td font-mono text-blue-400 font-medium">#{run.build_number}</td>
                     <td className="td text-slate-400 truncate max-w-[160px]">{run.jenkins_job ?? '—'}</td>
                     <td className="td text-slate-400">{run.branch ?? '—'}</td>
+                    <td className="td">
+                      {run.release_name ? (
+                        <button
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-900/40 text-violet-300 hover:bg-violet-800/50 transition-colors"
+                          onClick={e => { e.stopPropagation(); navigate('/releases') }}
+                          title={`Release: ${run.release_name}`}
+                        >
+                          <Package className="h-3 w-3" />
+                          {run.release_name}
+                        </button>
+                      ) : (
+                        <span className="text-slate-600 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="td"><StatusBadge status={run.status} /></td>
                     <td className="td">
                       <span className="text-emerald-400">{run.passed_tests}</span>
@@ -102,7 +118,6 @@ export default function RunsPage() {
                     <td className="td font-medium">{formatPassRate(run.pass_rate)}</td>
                     <td className="td text-slate-400">{formatDuration(run.duration_ms)}</td>
                     <td className="td text-slate-400" title={formatDateTime(run.created_at)}>{fromNow(run.created_at)}</td>
-                    <td className="td text-slate-600 text-xs">{run.ocp_pod_name ?? ''}</td>
                   </tr>
                 ))}
               </tbody>
