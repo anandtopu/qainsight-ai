@@ -80,17 +80,17 @@ async def test_exporter_write_jsonl_splits_holdout():
         clear=False,
     ):
         from app.services.training.exporter import TrainingDataExporter
-    exp = TrainingDataExporter()
-    uploaded = []
+        exp = TrainingDataExporter()
+        uploaded = []
 
-    async def fake_upload(path, records):
-        uploaded.append((path, len(records)))
+        async def fake_upload(path, records):
+            uploaded.append((path, len(records)))
 
-    with patch("app.services.training.exporter.settings") as s:
-        s.FINETUNE_EVAL_HOLDOUT = 0.2
-        s.FINETUNE_EXPORT_BUCKET = "b"
-        with patch.object(exp, "_upload_jsonl", side_effect=fake_upload):
-            count = await exp._write_jsonl("classifier", [{"x": i} for i in range(10)])
+        with patch("app.services.training.exporter.settings") as s:
+            s.FINETUNE_EVAL_HOLDOUT = 0.2
+            s.FINETUNE_EXPORT_BUCKET = "b"
+            with patch.object(exp, "_upload_jsonl", side_effect=fake_upload):
+                count = await exp._write_jsonl("classifier", [{"x": i} for i in range(10)])
     assert count == 8
     assert len(uploaded) == 2
 
