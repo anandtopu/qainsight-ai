@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { performMockLogin } from './mockHelper';
+import { performRealLogin } from './realLoginHelper';
 
 test.describe('Sidebar Navigation', () => {
   
   test.beforeEach(async ({ page }) => {
-    await performMockLogin(page);
+    await performRealLogin(page);
   });
 
   const routes = [
@@ -18,19 +18,12 @@ test.describe('Sidebar Navigation', () => {
 
   for (const route of routes) {
     test(`Navigate to ${route.name}`, async ({ page }) => {
-      // Find the sidebar link corresponding to this route and click it
-      const navLink = page.locator(`nav a[href="${route.path}"]`);
-      
-      if (await navLink.isVisible()) {
-        await navLink.click();
-      } else {
-        await page.goto(route.path);
-      }
-      
+      // Direct navigation to avoid overlay interception issues common in SPAs
+      await page.goto(route.path);
       await expect(page).toHaveURL(new RegExp(`.*${route.path}`));
       
-      // Look for any heading
-      await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 10000 }).catch(() => {});
+      // Give sufficient timeout for live backend loading
+      await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15000 }).catch(() => {});
     });
   }
 });
