@@ -124,10 +124,11 @@ async def run_triage_agent(
         agent=agent,
         tools=tools,
         verbose=settings.is_development,
-        max_iterations=10,
+        max_iterations=6,
         handle_parsing_errors=True,
         return_intermediate_steps=True,
         max_execution_time=settings.AI_TIMEOUT_SECONDS,
+        early_stopping_method="generate",
     )
 
     user_question = (

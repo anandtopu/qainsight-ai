@@ -402,7 +402,7 @@ def dispatch_run_notifications(
     bind=True,
     max_retries=2,
     queue="ai_analysis",
-    time_limit=600,
+    time_limit=1800,
 )
 def run_agent_pipeline(
     self,

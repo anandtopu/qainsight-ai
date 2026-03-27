@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     AI_OFFLINE_MODE: bool = True
     AI_CONFIDENCE_THRESHOLD: int = 80
     AI_MAX_RETRIES: int = 3
-    AI_TIMEOUT_SECONDS: int = 120
+    AI_TIMEOUT_SECONDS: int = 300
 
     # ── Jira ─────────────────────────────────────────────────
     JIRA_ENABLED: bool = False

@@ -57,26 +57,40 @@ class AnalysisAgent(BaseAgent):
             self._analyse_one(semaphore, tc_id, test_meta.get(tc_id, {}), state)
             for tc_id in failed_ids
         ]
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+        try:
+            results_list = await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as gather_exc:
+            # Shouldn't happen with return_exceptions=True, but guard against it
+            logger.error("asyncio.gather failed unexpectedly: %s", gather_exc)
+            results_list = [gather_exc] * len(failed_ids)
 
         analyses: dict[str, dict] = {}
         errors: list[str] = []
+        timed_out = 0
         for tc_id, result in zip(failed_ids, results_list):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 errors.append(f"Analysis failed for {tc_id}: {result}")
                 analyses[tc_id] = {"error": str(result), "confidence_score": 0}
             else:
                 analyses[tc_id] = result
+                if result.get("timed_out"):
+                    timed_out += 1
 
         await self.mark_stage_done(
             pipeline_run_id,
-            result_data={"analysed": len(analyses), "errors": len(errors)},
+            result_data={
+                "analysed": len(analyses),
+                "errors": len(errors),
+                "timed_out": timed_out,
+            },
         )
         await self.broadcast_progress(
             project_id,
             {
                 "status": "completed",
-                "message": f"Root-cause analysis complete: {len(analyses)} test(s) analysed",
+                "message": f"Root-cause analysis complete: {len(analyses)} test(s) analysed"
+                + (f", {timed_out} timed out" if timed_out else ""),
             },
         )
 
@@ -97,20 +111,56 @@ class AnalysisAgent(BaseAgent):
         async with semaphore:
             logger.info("Analysing test case %s: %s", tc_id, meta.get("test_name", ""))
             try:
-                analysis = await run_triage_agent(
-                    test_case_id=tc_id,
-                    test_name=meta.get("test_name", tc_id),
-                    service_name=meta.get("suite_name"),
-                    timestamp=None,
-                    ocp_pod_name=state.get("test_run_data", {}).get("ocp_pod_name"),
-                    ocp_namespace=state.get("test_run_data", {}).get("ocp_namespace"),
+                analysis = await asyncio.wait_for(
+                    run_triage_agent(
+                        test_case_id=tc_id,
+                        test_name=meta.get("test_name", tc_id),
+                        service_name=meta.get("suite_name"),
+                        timestamp=None,
+                        ocp_pod_name=state.get("test_run_data", {}).get("ocp_pod_name"),
+                        ocp_namespace=state.get("test_run_data", {}).get("ocp_namespace"),
+                    ),
+                    timeout=settings.AI_TIMEOUT_SECONDS,
                 )
-                # Persist to ai_analysis table
-                await self._upsert_analysis(tc_id, analysis)
-                return analysis
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "ReAct agent timed out after %ds for test %s — using fallback",
+                    settings.AI_TIMEOUT_SECONDS, tc_id,
+                )
+                analysis = {
+                    "root_cause_summary": f"Analysis timed out after {settings.AI_TIMEOUT_SECONDS}s. Manual review required.",
+                    "failure_category": "UNKNOWN",
+                    "backend_error_found": False,
+                    "pod_issue_found": False,
+                    "is_flaky": False,
+                    "confidence_score": 0,
+                    "recommended_actions": ["Re-run analysis with a faster LLM or higher timeout", "Review stack trace manually"],
+                    "evidence_references": [],
+                    "requires_human_review": True,
+                    "timed_out": True,
+                }
             except Exception as exc:
                 logger.error("ReAct agent failed for %s: %s", tc_id, exc)
-                raise
+                analysis = {
+                    "root_cause_summary": f"Analysis failed: {exc}. Manual review required.",
+                    "failure_category": "UNKNOWN",
+                    "backend_error_found": False,
+                    "pod_issue_found": False,
+                    "is_flaky": False,
+                    "confidence_score": 0,
+                    "recommended_actions": ["Review stack trace manually", "Check LLM service connectivity"],
+                    "evidence_references": [],
+                    "requires_human_review": True,
+                    "error": str(exc),
+                }
+
+            # Persist to ai_analysis table (best-effort — don't fail the stage if upsert fails)
+            try:
+                await self._upsert_analysis(tc_id, analysis)
+            except Exception as db_exc:
+                logger.error("Failed to persist analysis for %s: %s", tc_id, db_exc)
+
+            return analysis
 
     async def _fetch_test_metadata(self, tc_ids: list[str]) -> dict[str, dict]:
         async with AsyncSessionLocal() as db:

@@ -71,8 +71,8 @@ celery_app.conf.update(
     task_acks_late=True,            # ack only after task completes (safe retries on crash)
     worker_max_tasks_per_child=200, # recycle worker process after 200 tasks (prevent leaks)
     # Time limits: soft sends SIGTERM to task coroutine, hard sends SIGKILL
-    task_soft_time_limit=540,       # 9 min soft
-    task_time_limit=660,            # 11 min hard
+    task_soft_time_limit=1740,      # 29 min soft (pipeline tasks can run up to 30 min)
+    task_time_limit=1860,           # 31 min hard
     # Connection resilience
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=10,
