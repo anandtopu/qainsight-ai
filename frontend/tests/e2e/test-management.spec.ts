@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { performMockLogin } from './mockHelper';
+import { performRealLogin } from './realLoginHelper';
 
 test.describe('Test Management', () => {
 
   test.beforeEach(async ({ page }) => {
-    await performMockLogin(page);
+    await performRealLogin(page);
   });
 
   test('should render test management and suite creation', async ({ page }) => {
     await page.goto('/test-management');
-    await expect(page.getByRole('heading').first()).toBeVisible();
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 10000 });
 
     const createButton = page.locator('button', { hasText: /Create|Add/i }).first();
     
