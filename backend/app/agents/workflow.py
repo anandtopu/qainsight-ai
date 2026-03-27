@@ -103,6 +103,7 @@ def _route_after_summary(state: WorkflowState) -> str:
     """
     Skip triage when no analyses reach the confidence threshold.
     Saves Jira API calls and reduces noise in the ticket tracker.
+    Used by the offline pipeline only.
     """
     analyses = state.get("analyses", {})
     threshold = settings.AI_CONFIDENCE_THRESHOLD
@@ -116,6 +117,30 @@ def _route_after_summary(state: WorkflowState) -> str:
             state.get("pipeline_run_id"), threshold,
         )
         return END
+    return "triage"
+
+
+def _route_after_summary_deep(state: WorkflowState) -> str:
+    """
+    Deep pipeline variant: specialist stages ALWAYS run.
+    Triage is skipped when no analyses meet the confidence threshold,
+    but execution jumps directly to flaky_sentinel so the full
+    flaky_sentinel → test_health → release_risk chain still executes.
+    Never returns END so all specialist stages are guaranteed to run.
+    """
+    analyses = state.get("analyses", {})
+    threshold = settings.AI_CONFIDENCE_THRESHOLD
+    has_triageable = any(
+        a.get("confidence_score", 0) >= threshold and not a.get("is_flaky", False)
+        for a in analyses.values()
+    )
+    if not has_triageable:
+        logger.info(
+            "Pipeline %s: no analyses above confidence threshold (%d) — skipping triage, "
+            "proceeding directly to specialist stages",
+            state.get("pipeline_run_id"), threshold,
+        )
+        return "flaky_sentinel"
     return "triage"
 
 
@@ -188,11 +213,11 @@ def _build_deep_graph() -> StateGraph:
     Extended deep-investigation pipeline with clustering, flaky sentinel, test health, and release risk.
 
     Graph topology:
-                                    ┌─ anomaly_detection ──────────────────────────┐
-      ingestion ─(conditional)──────┤                                               ├─ summary ─(conditional)─ triage ─ flaky_sentinel ─ test_health ─ release_risk ─ END
-                                    └─ root_cause_analysis ─┐                       │
-                                    └─ failure_clustering   ─┘ (fan-in to summary)  │
-                  (no failures) └─────────────────────────────────────────────────── summary ─ release_risk ─ END
+                                    ┌─ anomaly_detection ─────────────────────────────────┐
+      ingestion ─(conditional)──────┤                                                      ├─ summary ─(conditional)─ triage ─┐
+                                    └─ root_cause_analysis ─┐                              │                                   ├─ flaky_sentinel ─ test_health ─ release_risk ─ END
+                                    └─ failure_clustering   ─┘  (fan-in to summary)        │  (no triage) ─────────────────────┘
+                  (no failures) └──────────────────────────────────────────────────────────── summary ─ flaky_sentinel ─ test_health ─ release_risk ─ END
     """
     graph = StateGraph(WorkflowState)
 
@@ -227,21 +252,22 @@ def _build_deep_graph() -> StateGraph:
     graph.add_edge("root_cause_analysis", "summary")
     graph.add_edge("failure_clustering",  "summary")
 
-    # After summary: triage if triageable, else go straight to specialist stages
+    # After summary: triage if triageable, else jump to flaky_sentinel
+    # (specialist stages always run in the deep pipeline)
     graph.add_conditional_edges(
         "summary",
-        _route_after_summary,
+        _route_after_summary_deep,
         {
-            "triage": "triage",
-            END:      "release_risk",
+            "triage":         "triage",
+            "flaky_sentinel": "flaky_sentinel",
         },
     )
 
-    # Specialist stages run sequentially after triage
-    graph.add_edge("triage",        "flaky_sentinel")
-    graph.add_edge("flaky_sentinel", "test_health")
-    graph.add_edge("test_health",    "release_risk")
-    graph.add_edge("release_risk",   END)
+    # Specialist stages run sequentially after triage (or directly after summary)
+    graph.add_edge("triage",         "flaky_sentinel")
+    graph.add_edge("flaky_sentinel",  "test_health")
+    graph.add_edge("test_health",     "release_risk")
+    graph.add_edge("release_risk",    END)
 
     return graph
 
