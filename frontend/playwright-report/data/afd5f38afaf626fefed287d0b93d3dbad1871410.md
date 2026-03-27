@@ -1,0 +1,21 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - heading "Sign in to QA Insight" [level=2] [ref=e14]
+      - paragraph [ref=e15]: AI-Powered Software Testing Intelligence
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Email or Username
+        - textbox "Email or Username" [ref=e22]:
+          - /placeholder: admin
+      - generic [ref=e23]:
+        - generic [ref=e24]: Password
+        - textbox "Password" [ref=e26]:
+          - /placeholder: ••••••••
+      - button "Log In" [ref=e28] [cursor=pointer]
+  - status [ref=e34]: Logged in successfully
+```
