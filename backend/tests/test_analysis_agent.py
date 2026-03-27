@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-pytest.importorskip("asyncpg")
+pytest.importorskip("asyncpg")  # skip entire module if asyncpg is not installed
 
-from app.agents.analysis_agent import AnalysisAgent
+from app.agents.analysis_agent import AnalysisAgent  # noqa: E402
 
 
 class TestAnalysisAgentFallbacks:
