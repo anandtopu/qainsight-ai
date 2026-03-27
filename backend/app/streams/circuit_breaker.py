@@ -163,22 +163,22 @@ class LLMCircuitBreaker:
     @classmethod
     async def _get_field(cls, field: str) -> Any:
         redis = get_redis()
-        return await redis.hget(CIRCUIT_KEY, field)
+        return await redis.hget(CIRCUIT_KEY, field)  # type: ignore[misc]
 
     @classmethod
     async def _set_state(cls, state: str) -> None:
         redis = get_redis()
-        await redis.hset(CIRCUIT_KEY, "state", state)
-        await redis.expire(CIRCUIT_KEY, RECOVERY_TIMEOUT_S * 4)
+        await redis.hset(CIRCUIT_KEY, "state", state)  # type: ignore[misc]
+        await redis.expire(CIRCUIT_KEY, RECOVERY_TIMEOUT_S * 4)  # type: ignore[misc]
 
     @classmethod
     async def _open(cls) -> None:
         redis = get_redis()
-        await redis.hset(CIRCUIT_KEY, mapping={
+        await redis.hset(CIRCUIT_KEY, mapping={  # type: ignore[misc]
             "state": _STATE_OPEN,
             "opened_at": str(time.time()),
         })
-        await redis.expire(CIRCUIT_KEY, RECOVERY_TIMEOUT_S * 4)
+        await redis.expire(CIRCUIT_KEY, RECOVERY_TIMEOUT_S * 4)  # type: ignore[misc]
 
     @classmethod
     async def _reset(cls) -> None:

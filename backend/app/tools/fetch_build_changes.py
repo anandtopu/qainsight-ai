@@ -4,6 +4,7 @@ Used by FlakySentinelAgent to correlate flakiness onset with specific code chang
 """
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 from langchain_core.tools import tool  # type: ignore
@@ -70,7 +71,7 @@ async def fetch_build_changes(params_json: str) -> str:
     from sqlalchemy import select
     from app.models.postgres import TestRun
     async with AsyncSessionLocal() as db:
-        runs = []
+        runs: list[Any] = []
         if project_id:
             result = await db.execute(
                 select(TestRun)
@@ -78,7 +79,7 @@ async def fetch_build_changes(params_json: str) -> str:
                 .where(TestRun.build_number.in_([stable_build, flaky_build]))
                 .order_by(TestRun.created_at)
             )
-            runs = result.scalars().all()
+            runs = list(result.scalars().all())
 
     stable_run = next((r for r in runs if r.build_number == stable_build), None)
     flaky_run = next((r for r in runs if r.build_number == flaky_build), None)

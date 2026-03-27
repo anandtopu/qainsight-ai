@@ -128,12 +128,10 @@ class SummaryAgent(BaseAgent):
         exec_resp = await llm.ainvoke(exec_prompt)
         report_resp = await llm.ainvoke(report_prompt)
 
-        executive_summary = (
-            exec_resp.content if hasattr(exec_resp, "content") else str(exec_resp)
-        ).strip()
-        markdown_report = (
-            report_resp.content if hasattr(report_resp, "content") else str(report_resp)
-        ).strip()
+        _exec_raw = exec_resp.content if hasattr(exec_resp, "content") else str(exec_resp)
+        executive_summary = (str(_exec_raw)).strip()
+        _report_raw = report_resp.content if hasattr(report_resp, "content") else str(report_resp)
+        markdown_report = (str(_report_raw)).strip()
 
         return executive_summary, markdown_report
 

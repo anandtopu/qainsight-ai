@@ -139,7 +139,8 @@ class ReleaseRiskAgent(BaseAgent):
 
         llm = get_llm(temperature=0.0)
         response = await llm.ainvoke(prompt)
-        content = response.content if hasattr(response, "content") else str(response)
+        _raw = response.content if hasattr(response, "content") else str(response)
+        content = _raw if isinstance(_raw, str) else str(_raw)
 
         json_match = re.search(r"\{.*\}", content, re.DOTALL)
         if json_match:
@@ -154,17 +155,17 @@ class ReleaseRiskAgent(BaseAgent):
             except json.JSONDecodeError:
                 pass
 
-        product_bugs = sum(
+        product_bug_count: int = sum(
             1 for a in analyses.values()
             if a.get("failure_category") == FailureCategory.PRODUCT_BUG and not a.get("is_flaky")
         )
-        risk_score = max(0, min(100, int((1 - pass_rate / 100) * 80 + product_bugs * 5)))
+        risk_score = max(0, min(100, int((1 - pass_rate / 100) * 80 + product_bug_count * 5)))
         return {
-            "recommendation": "GO" if pass_rate >= threshold and product_bugs == 0 else "CONDITIONAL_GO",
+            "recommendation": "GO" if pass_rate >= threshold and product_bug_count == 0 else "CONDITIONAL_GO",
             "risk_score": risk_score,
-            "blocking_issues": [f"{product_bugs} confirmed product bugs"] if product_bugs > 0 else [],
-            "conditions_for_go": ["Resolve product bugs before deploying"] if product_bugs > 0 else [],
-            "reasoning": f"Pass rate: {pass_rate:.1f}%, product bugs: {product_bugs}, open defects: {open_defects}",
+            "blocking_issues": [f"{product_bug_count} confirmed product bugs"] if product_bug_count > 0 else [],
+            "conditions_for_go": ["Resolve product bugs before deploying"] if product_bug_count > 0 else [],
+            "reasoning": f"Pass rate: {pass_rate:.1f}%, product bugs: {product_bug_count}, open defects: {open_defects}",
         }
 
     async def _persist_decision(self, test_run_id: str, decision: dict) -> None:

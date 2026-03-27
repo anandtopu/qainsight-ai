@@ -199,7 +199,8 @@ class ConversationAgent:
         try:
             llm = get_llm()
             response = await llm.ainvoke(messages)
-            reply = response.content if hasattr(response, "content") else str(response)
+            _raw_reply = response.content if hasattr(response, "content") else str(response)
+            reply = _raw_reply if isinstance(_raw_reply, str) else str(_raw_reply)
         except Exception as exc:
             logger.error("LLM invocation failed: %s", exc)
             reply = "I'm having trouble connecting to the AI provider. Please try again."
@@ -555,7 +556,7 @@ class ConversationAgent:
                 embedder = get_embedding_model()
                 vector = embedder.embed_query(query)
                 results = collection.query(query_embeddings=[vector], n_results=3)
-                docs = results.get("documents", [[]])[0]
+                docs = (results.get("documents") or [[]])[0]
                 return "\n".join(f"- {d[:300]}" for d in docs) if docs else ""
             except Exception:
                 return ""
@@ -677,7 +678,8 @@ class ConversationAgent:
             # Generate summary (outside the DB session to avoid holding a connection)
             llm = get_llm()
             response = await llm.ainvoke([HumanMessage(content=compression_prompt)])
-            summary_content = response.content if hasattr(response, "content") else str(response)
+            _raw_summary = response.content if hasattr(response, "content") else str(response)
+            summary_content = _raw_summary if isinstance(_raw_summary, str) else str(_raw_summary)
 
             await self._save_message(session_id, "summary", summary_content, sources=None)
             logger.info(

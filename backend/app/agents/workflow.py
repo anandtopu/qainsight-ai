@@ -11,7 +11,7 @@ Improvements over v1:
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, cast
 
 from langgraph.graph import END, StateGraph  # type: ignore
 
@@ -46,39 +46,39 @@ _release_risk  = ReleaseRiskAgent()
 # ── LangGraph node functions ──────────────────────────────────────────────────
 
 async def ingestion_node(state: WorkflowState) -> dict:
-    return await _ingestion.run(state)
+    return await _ingestion.run(cast(dict[str, Any], state))
 
 
 async def anomaly_node(state: WorkflowState) -> dict:
-    return await _anomaly.run(state)
+    return await _anomaly.run(cast(dict[str, Any], state))
 
 
 async def analysis_node(state: WorkflowState) -> dict:
-    return await _analysis.run(state)
+    return await _analysis.run(cast(dict[str, Any], state))
 
 
 async def summary_node(state: WorkflowState) -> dict:
-    return await _summary.run(state)
+    return await _summary.run(cast(dict[str, Any], state))
 
 
 async def triage_node(state: WorkflowState) -> dict:
-    return await _triage.run(state)
+    return await _triage.run(cast(dict[str, Any], state))
 
 
 async def cluster_node(state: WorkflowState) -> dict:
-    return await _cluster.run(state)
+    return await _cluster.run(cast(dict[str, Any], state))
 
 
 async def flaky_sentinel_node(state: WorkflowState) -> dict:
-    return await _flaky_sentinel.run(state)
+    return await _flaky_sentinel.run(cast(dict[str, Any], state))
 
 
 async def test_health_node(state: WorkflowState) -> dict:
-    return await _test_health.run(state)
+    return await _test_health.run(cast(dict[str, Any], state))
 
 
 async def release_risk_node(state: WorkflowState) -> dict:
-    return await _release_risk.run(state)
+    return await _release_risk.run(cast(dict[str, Any], state))
 
 
 # ── Routing functions (conditional edges) ────────────────────────────────────

@@ -70,7 +70,8 @@ class FastClassifier:
                 SystemMessage(content=_CLASSIFIER_SYSTEM),
                 HumanMessage(content=user_content),
             ])
-            result = _parse_classifier_output(response.content)
+            raw_content = response.content if hasattr(response, "content") else str(response)
+            result = _parse_classifier_output(raw_content if isinstance(raw_content, str) else str(raw_content))
         except Exception as exc:
             logger.debug("FastClassifier failed: %s", exc)
             return None

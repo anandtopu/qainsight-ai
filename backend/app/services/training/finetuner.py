@@ -78,8 +78,8 @@ class FineTuningPipeline:
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
             # Download JSONL from MinIO and upload to OpenAI Files API
-            from app.db.storage import get_storage
-            storage = get_storage()
+            from app.db.storage import get_storage_provider
+            storage = get_storage_provider()
             content = await storage.get_object_content(
                 training_path, bucket=settings.FINETUNE_EXPORT_BUCKET
             )

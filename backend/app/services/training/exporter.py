@@ -23,7 +23,7 @@ import logging
 import random
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update as sa_update
 
 from app.core.config import settings
 from app.db.mongo import Collections, get_mongo_db
@@ -139,12 +139,12 @@ class TrainingDataExporter:
                     )
                 )
             )
-            for row in correction_rows.all():
+            for corr_row in correction_rows.all():
                 examples.append(self._make_classifier_example(
-                    test_name=row.test_name,
-                    error_message=row.error_message or "",
-                    category=str(row.corrected_category),
-                    root_cause=row.corrected_root_cause or "",
+                    test_name=corr_row.test_name,
+                    error_message=corr_row.error_message or "",
+                    category=str(corr_row.corrected_category),
+                    root_cause=corr_row.corrected_root_cause or "",
                     confidence=100,  # human correction = perfect label
                     source="category_correction",
                 ))
@@ -156,7 +156,7 @@ class TrainingDataExporter:
             ids = [r[0] for r in feedback_ids.all()]
             if ids:
                 await db.execute(
-                    AIFeedback.__table__.update()
+                    sa_update(AIFeedback)
                     .where(AIFeedback.id.in_(ids))
                     .values(exported=True)
                 )
@@ -363,8 +363,8 @@ class TrainingDataExporter:
     @staticmethod
     async def _upload_jsonl(path: str, records: list[dict]) -> None:
         """Upload JSONL to MinIO training-data bucket."""
-        from app.db.storage import get_storage
-        storage = get_storage()
+        from app.db.storage import get_storage_provider
+        storage = get_storage_provider()
         content = "\n".join(json.dumps(r) for r in records).encode("utf-8")
         await storage.upload_object(
             bucket=settings.FINETUNE_EXPORT_BUCKET,
