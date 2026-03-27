@@ -1,31 +1,57 @@
 import { test, expect } from '@playwright/test';
-import { performRealLogin } from './realLoginHelper';
 
 test.describe('Authentication Flow', () => {
+  // This suite tests the login flow from scratch, so it must not inherit the
+  // pre-authenticated storageState set in playwright.config.ts.
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-// Note: Testing successful login here only, not unauthorized redirect since it might leave token.
-// We clear storage directly.
-  test('should allow user to login and redirect to overview', async ({ page, context }) => {
-    await context.clearCookies();
-    await page.evaluate(() => window.localStorage.clear()).catch(() => {});
-    
+  test('should allow user to login and redirect to overview', async ({ page }) => {
     await page.goto('/login');
-    
-    const usernameInput = page.locator('input[name="username"]');
-    const passwordInput = page.locator('input[name="password"]');
-    const submitButton = page.locator('button[type="submit"]');
-    
-    await expect(usernameInput).toBeVisible();
-    await usernameInput.fill('admin');
-    
-    await expect(passwordInput).toBeVisible();
-    await passwordInput.fill('Admin@2026!');
-    
-    await expect(submitButton).toBeVisible();
-    await submitButton.click();
-    
-    await expect(page).toHaveURL(/.*\/overview/);
-    await expect(page.locator('h1', { hasText: 'Overview' })).toBeVisible({ timeout: 10000 });
+
+    await expect(page.locator('input[name="username"]')).toBeVisible();
+
+    // Use the native HTMLInputElement prototype setter to set values, then
+    // dispatch a synthetic 'input' event with bubbles:true. This is the only
+    // cross-browser reliable way to trigger React's synthetic onChange on
+    // controlled inputs when running in a cleared-origins security context.
+    // fill() and pressSequentially() can both fail to update React state in
+    // Chromium's cleared-storage context.
+    await page.evaluate(() => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )!.set!;
+
+      const u = document.querySelector('input[name="username"]') as HTMLInputElement;
+      nativeSetter.call(u, 'admin');
+      u.dispatchEvent(new Event('input', { bubbles: true }));
+
+      const p = document.querySelector('input[name="password"]') as HTMLInputElement;
+      nativeSetter.call(p, 'Admin@2026!');
+      p.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // Verify DOM values are set before submitting
+    await expect(page.locator('input[name="username"]')).toHaveValue('admin');
+    await expect(page.locator('input[name="password"]')).toHaveValue('Admin@2026!');
+
+    // Intercept the login response to report a clear error if the API fails.
+    const [loginResponse] = await Promise.all([
+      page.waitForResponse(
+        resp => resp.url().includes('/api/v1/auth/login') && resp.request().method() === 'POST',
+        { timeout: 15000 },
+      ),
+      page.locator('button[type="submit"]').click(),
+    ]);
+
+    expect(
+      loginResponse.status(),
+      `Login API returned ${loginResponse.status()} — expected 200`,
+    ).toBe(200);
+
+    await page.waitForURL(/.*\/overview/, { timeout: 20000 });
+    // Sidebar navigation is always present once authenticated
+    await expect(page.getByRole('navigation')).toBeVisible({ timeout: 10000 });
   });
 
 });

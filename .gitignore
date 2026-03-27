@@ -25,6 +25,9 @@ frontend/dist/
 frontend/.vite/
 *.log
 
+# Playwright auth state (contains JWT — never commit)
+frontend/tests/e2e/.auth/
+
 # Docker
 docker-compose.override.yml
 

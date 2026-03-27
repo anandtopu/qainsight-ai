@@ -48,11 +48,12 @@ export const useAuthStore = create<AuthState>()(
           const res = await api.get<User>('/api/v1/auth/me');
           set({ user: res.data, isAuthenticated: true });
         } catch (err) {
-          // Only clear auth on actual auth failures (401/403).
-          // Network errors or server unavailability (5xx, timeout) should not
-          // log the user out — they may just be a transient connectivity issue.
+          // Only clear auth on explicit auth rejections (401/403).
+          // Network errors (status undefined) or server errors (5xx) should not
+          // log the user out — they may be a transient connectivity issue and
+          // the stored token may still be valid once the backend recovers.
           const status = (err as { response?: { status?: number } })?.response?.status;
-          if (!status || status === 401 || status === 403) {
+          if (status === 401 || status === 403) {
             logout();
           }
         }

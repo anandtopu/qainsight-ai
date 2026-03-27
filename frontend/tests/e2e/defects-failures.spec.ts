@@ -9,11 +9,14 @@ test.describe('Defects and Failure Analysis', () => {
 
   test('should render Failure Analysis page', async ({ page }) => {
     await page.goto('/failures');
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 10000 });
+    // When no project is selected the page renders an EmptyState <h3>; when a
+    // project is selected it renders a PageHeader <h1>.  Either way a heading
+    // at any level is present — don't constrain to level 1.
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should render Defects tracking page', async ({ page }) => {
     await page.goto('/defects');
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 10000 });
   });
 });

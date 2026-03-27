@@ -8,7 +8,9 @@ test.describe('Dashboard / Overview', () => {
   });
 
   test('should display overview widgets and headings', async ({ page }) => {
-    await expect(page.locator('h1').filter({ hasText: /Overview/i }).first()).toBeVisible({ timeout: 10000 });
+    // The overview page shows "Executive Dashboard" (project selected) or a project prompt.
+    // Sidebar navigation is always present once authenticated.
+    await expect(page.getByRole('navigation')).toBeVisible({ timeout: 10000 });
 
     const commonTitles = ['Total Runs', 'Pass Rate', 'Active Agents', 'Recent Activity'];
     
