@@ -50,9 +50,9 @@ export interface ActiveLiveRun {
 }
 
 const agentService = {
-  listPipelines: (runId?: string, status?: string, limit = 20) =>
+  listPipelines: (runId?: string, projectId?: string, status?: string, limit = 20) =>
     api.get<AgentPipelineRun[]>('/api/v1/agents/pipelines', {
-      params: { run_id: runId, status, limit },
+      params: { run_id: runId, project_id: projectId, status, limit },
     }),
 
   getPipeline: (pipelineId: string) =>

@@ -21,15 +21,20 @@ router = APIRouter(prefix="/api/v1/agents", tags=["Agents"])
 @router.get("/pipelines", response_model=list[AgentPipelineResponse])
 async def list_pipelines(
     run_id: Optional[uuid.UUID] = Query(None),
+    project_id: Optional[uuid.UUID] = Query(None),
     status: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _: any = Depends(get_current_active_user),
 ):
-    """List agent pipeline runs, optionally filtered by test run or status."""
+    """List agent pipeline runs, optionally filtered by test run, project, or status."""
     q = select(AgentPipelineRun)
     if run_id:
         q = q.where(AgentPipelineRun.test_run_id == run_id)
+    if project_id:
+        q = q.join(TestRun, AgentPipelineRun.test_run_id == TestRun.id).where(
+            TestRun.project_id == project_id
+        )
     if status:
         q = q.where(AgentPipelineRun.status == status)
     q = q.order_by(AgentPipelineRun.created_at.desc()).limit(limit)

@@ -1,10 +1,17 @@
 import useSWR from 'swr'
 import agentService, { AgentPipelineRun, AgentStageResult, ActiveLiveRun, RunSummary } from '@/services/agentService'
+import { useProjectStore } from '@/store/projectStore'
 
 export function usePipelines(runId?: string) {
+  const projectId = useProjectStore(s => s.activeProjectId)
+  const key = runId
+    ? `/pipelines?run=${runId}`
+    : projectId
+      ? `/pipelines?project=${projectId}`
+      : '/pipelines'
   return useSWR<AgentPipelineRun[]>(
-    runId ? `/pipelines?run=${runId}` : '/pipelines',
-    () => agentService.listPipelines(runId).then((r) => r.data),
+    key,
+    () => agentService.listPipelines(runId, projectId ?? undefined).then((r) => r.data),
     { refreshInterval: 5000, revalidateOnFocus: false },
   )
 }
