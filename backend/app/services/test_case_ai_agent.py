@@ -65,7 +65,8 @@ Generate 3-8 test cases covering: happy path, edge cases, error conditions, boun
     human = HumanMessage(content=f"Generate test cases for:\n\n{requirements}")
     try:
         response = llm.invoke([system, human])
-        content = response.content if hasattr(response, "content") else str(response)
+        _raw = response.content if hasattr(response, "content") else str(response)
+        content = _raw if isinstance(_raw, str) else str(_raw)
         # Extract JSON from response
         start = content.find("{")
         end = content.rfind("}") + 1

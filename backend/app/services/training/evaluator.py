@@ -155,7 +155,8 @@ class ModelEvaluator:
                 SystemMessage(content=_CLASSIFIER_SYSTEM),
                 HumanMessage(content=user_content),
             ])
-            return _parse_classifier_output(resp.content)
+            raw = resp.content if hasattr(resp, "content") else str(resp)
+            return _parse_classifier_output(raw if isinstance(raw, str) else str(raw))
         except Exception as exc:
             logger.debug("Eval inference failed model=%s: %s", model, exc)
             return None
@@ -164,8 +165,8 @@ class ModelEvaluator:
     async def _load_holdout(path: str) -> list[dict]:
         """Download holdout JSONL from MinIO."""
         try:
-            from app.db.storage import get_storage
-            storage = get_storage()
+            from app.db.storage import get_storage_provider
+            storage = get_storage_provider()
             content = await storage.get_object_content(path, bucket=settings.FINETUNE_EXPORT_BUCKET)
             return [json.loads(line) for line in content.decode().splitlines() if line.strip()]
         except Exception as exc:

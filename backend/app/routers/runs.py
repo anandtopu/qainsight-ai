@@ -95,7 +95,7 @@ async def list_runs(
     release_map = await _fetch_release_map(db, run_ids)
 
     return {
-        "items": _enrich_with_release(runs, release_map),
+        "items": _enrich_with_release(list(runs), release_map),
         "total": total,
         "page": page,
         "size": size,

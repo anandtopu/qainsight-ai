@@ -323,7 +323,7 @@ class LiveEventStreamConsumer:
                 "timestamp_ms":  payload.get("timestamp_ms"),
             })
             key = LIVE_TESTCASES_KEY.format(run_id=run_id)
-            await redis.rpush(key, entry)
+            await redis.rpush(key, entry)  # type: ignore[misc]
             await redis.expire(key, 90_000)   # 25 h
         except Exception as exc:
             logger.debug("Failed to buffer test event for run %s: %s", run_id, exc)

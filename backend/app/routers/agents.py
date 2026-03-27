@@ -4,7 +4,7 @@ Agent pipeline management endpoints.
 Provides visibility into running/completed pipelines and allows manual triggering.
 """
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -25,7 +25,7 @@ async def list_pipelines(
     status: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _: any = Depends(get_current_active_user),
+    _: Any = Depends(get_current_active_user),
 ):
     """List agent pipeline runs, optionally filtered by test run, project, or status."""
     q = select(AgentPipelineRun)
@@ -47,7 +47,7 @@ async def list_pipelines(
 async def get_pipeline(
     pipeline_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: any = Depends(get_current_active_user),
+    _: Any = Depends(get_current_active_user),
 ):
     """Get a single pipeline run with all stage results."""
     result = await db.execute(
@@ -63,7 +63,7 @@ async def get_pipeline(
 async def trigger_pipeline(
     payload: TriggerPipelineRequest,
     db: AsyncSession = Depends(get_db),
-    _: any = Depends(require_role(UserRole.QA_ENGINEER)),
+    _: Any = Depends(require_role(UserRole.QA_ENGINEER)),
 ):
     """
     Manually trigger the agent pipeline for an existing test run.
@@ -90,7 +90,7 @@ async def trigger_pipeline(
 async def get_pipeline_stages(
     pipeline_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: any = Depends(get_current_active_user),
+    _: Any = Depends(get_current_active_user),
 ):
     """Get detailed stage results for a pipeline run."""
     result = await db.execute(
@@ -113,7 +113,7 @@ async def get_pipeline_stages(
 
 
 @router.get("/active-runs")
-async def get_active_live_runs(_: any = Depends(get_current_active_user)):
+async def get_active_live_runs(_: Any = Depends(get_current_active_user)):
     """Get all currently monitored live test runs."""
     from app.agents.live_monitor import LiveMonitorAgent
     return {"active_runs": await LiveMonitorAgent.get_active_runs()}
@@ -122,7 +122,7 @@ async def get_active_live_runs(_: any = Depends(get_current_active_user)):
 @router.get("/active-runs/{run_id}")
 async def get_live_run_state(
     run_id: str,
-    _: any = Depends(get_current_active_user),
+    _: Any = Depends(get_current_active_user),
 ):
     """Get the current state for a single live test run."""
     from app.agents.live_monitor import LiveMonitorAgent
@@ -135,7 +135,7 @@ async def get_live_run_state(
 @router.get("/runs/{run_id}/summary")
 async def get_run_summary(
     run_id: str,
-    _: any = Depends(get_current_active_user),
+    _: Any = Depends(get_current_active_user),
 ):
     """Retrieve the AI-generated markdown summary for a test run."""
     from app.db.mongo import Collections, get_mongo_db

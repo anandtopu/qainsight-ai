@@ -269,6 +269,7 @@ class AnomalyDetectionAgent(BaseAgent):
         try:
             llm = get_llm()
             response = await llm.ainvoke(prompt)
-            return response.content if hasattr(response, "content") else str(response)
+            _raw = response.content if hasattr(response, "content") else str(response)
+            return _raw if isinstance(_raw, str) else str(_raw)
         except Exception:
             return descriptions

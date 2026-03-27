@@ -124,5 +124,5 @@ async def embed_and_cluster(error_messages_json: str) -> str:
         })
 
     # Sort by size descending (largest cluster first)
-    clusters.sort(key=lambda c: c["size"], reverse=True)
+    clusters.sort(key=lambda c: int(c["size"]), reverse=True)
     return json.dumps({"clusters": clusters})
