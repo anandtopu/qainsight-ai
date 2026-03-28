@@ -1,13 +1,13 @@
 import useSWR from 'swr'
 import { releasesService } from '@/services/releasesService'
-import { useProjectStore } from '@/store/projectStore'
+import { useProjectScopedSWR } from './useProjectScopedSWR'
 
 export function useReleases(status?: string) {
-  const projectId = useProjectStore(s => s.activeProjectId)
-  return useSWR(
-    projectId ? ['releases-list', projectId, status ?? ''] : null,
-    () => releasesService.list(projectId as string, status),
+  return useProjectScopedSWR(
+    'releases-list',
+    (projectId) => releasesService.list(projectId, status),
     { refreshInterval: 30_000 },
+    [status ?? ''],
   )
 }
 

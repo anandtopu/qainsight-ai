@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
-import chatService, { ChatMessage, ChatSession, RunSummary } from '@/services/chatService'
+import chatService from '@/services/chatService'
+import type { ChatMessage, ChatSession, RunSummary } from '@/types/chat'
 
 export function useRunSummaries(projectId?: string | null, days = 5) {
   return useSWR<RunSummary[]>(
     ['run-summaries', projectId, days],
-    () => chatService.getRunSummaries(projectId, days).then((r) => r.data),
+    () => chatService.getRunSummaries(projectId, days),
     { revalidateOnFocus: false, refreshInterval: 60_000 },
   )
 }
@@ -13,7 +14,7 @@ export function useRunSummaries(projectId?: string | null, days = 5) {
 export function useChatSessions() {
   return useSWR<ChatSession[]>(
     '/chat/sessions',
-    () => chatService.listSessions().then((r) => r.data),
+    () => chatService.listSessions(),
     { revalidateOnFocus: false },
   )
 }
@@ -21,7 +22,7 @@ export function useChatSessions() {
 export function useChatMessages(sessionId: string | null) {
   return useSWR<ChatMessage[]>(
     sessionId ? `/chat/sessions/${sessionId}/messages` : null,
-    () => chatService.getMessages(sessionId ?? '').then((r) => r.data),
+    () => chatService.getMessages(sessionId ?? ''),
     { revalidateOnFocus: false },
   )
 }

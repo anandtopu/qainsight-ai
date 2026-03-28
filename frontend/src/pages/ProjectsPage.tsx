@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { FlaskConical, Plus, X } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
-import { projectsService, type Project } from '@/services/projectsService'
+import { projectsService } from '@/services/projectsService'
 import { useProjectStore } from '@/store/projectStore'
+import type { Project } from '@/types/projects'
 import { fromNow } from '@/utils/formatters'
 import toast from 'react-hot-toast'
 

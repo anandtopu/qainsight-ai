@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project } from '@/services/projectsService'
+import type { Project } from '@/types/projects'
 
 interface ProjectStore {
   activeProjectId: string | null

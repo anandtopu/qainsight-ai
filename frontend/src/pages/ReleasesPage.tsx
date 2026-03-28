@@ -11,8 +11,9 @@ import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useReleases, useRelease } from '@/hooks/useReleases'
 import { useProjectStore } from '@/store/projectStore'
-import { releasesService, type Release, type ReleasePhase, type ReleaseDetail, type LinkedRun } from '@/services/releasesService'
+import { releasesService } from '@/services/releasesService'
 import { useRuns } from '@/hooks/useRuns'
+import type { LinkedRun, Release, ReleaseDetail, ReleasePhase } from '@/types/releases'
 
 // ── Constants ───────────────────────────────────────────────────────────────
 

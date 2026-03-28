@@ -1,51 +1,22 @@
-import { api } from './api'
-
-export interface ChatSession {
-  id: string
-  project_id: string | null
-  title: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface ChatMessage {
-  id: string
-  session_id: string
-  role: 'user' | 'assistant'
-  content: string
-  sources: Array<{ type: string; id?: string; label?: string }> | null
-  created_at: string
-}
-
-export interface RunSummary {
-  test_run_id: string
-  project_id: string
-  build_number: string
-  executive_summary: string
-  markdown_report: string | null   // null for stubs (AI analysis pending)
-  anomaly_count: number
-  is_regression: boolean
-  analysis_count: number
-  generated_at: string
-  is_stub?: boolean                // true = stats-based, no LLM summary yet
-}
+import type { ChatMessage, ChatSession, RunSummary } from '@/types/chat'
+import { deleteData, getData, postData } from './http'
 
 const chatService = {
-  listSessions: () => api.get<ChatSession[]>('/api/v1/chat/sessions'),
+  listSessions: () => getData<ChatSession[]>('/api/v1/chat/sessions'),
 
   getRunSummaries: (projectId?: string | null, days = 5) =>
-    api.get<RunSummary[]>('/api/v1/chat/run-summaries', {
+    getData<RunSummary[]>('/api/v1/chat/run-summaries', {
       params: { project_id: projectId ?? undefined, days },
     }),
 
   createSession: (payload: { project_id?: string; title?: string }) =>
-    api.post<ChatSession>('/api/v1/chat/sessions', payload),
+    postData<ChatSession, { project_id?: string; title?: string }>('/api/v1/chat/sessions', payload),
 
   deleteSession: (sessionId: string) =>
-    api.delete(`/api/v1/chat/sessions/${sessionId}`),
+    deleteData(`/api/v1/chat/sessions/${sessionId}`),
 
   getMessages: (sessionId: string, limit = 50) =>
-    api.get<ChatMessage[]>(`/api/v1/chat/sessions/${sessionId}/messages`, {
+    getData<ChatMessage[]>(`/api/v1/chat/sessions/${sessionId}/messages`, {
       params: { limit },
     }),
 
@@ -54,10 +25,11 @@ const chatService = {
     message: string,
     projectId?: string | null,
   ) =>
-    api.post<{ session_id: string; reply: string; sources: unknown[] }>(
+    postData<{ session_id: string; reply: string; sources: unknown[] }, { message: string; project_id?: string }>(
       `/api/v1/chat/sessions/${sessionId}/messages`,
       { message, project_id: projectId ?? undefined },
     ),
 }
 
 export default chatService
+export type { ChatMessage, ChatSession, RunSummary }

@@ -9,8 +9,8 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useActiveLiveRuns, usePipelineStages, usePipelines, useRunSummary } from '@/hooks/useAgentRuns'
-import agentService, { ActiveLiveRun } from '@/services/agentService'
-import type { AgentPipelineRun, AgentStageResult } from '@/services/agentService'
+import agentService from '@/services/agentService'
+import type { ActiveLiveRun, AgentPipelineRun, AgentStageResult } from '@/types/agent'
 
 // ── Stage metadata ─────────────────────────────────────────────
 

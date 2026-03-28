@@ -1,18 +1,19 @@
-import { api } from './api'
+import type { RunTestCase, RunTestCaseListResponse, TestRun, TestRunListResponse } from '@/types/runs'
+import { getData, postData } from './http'
 
 export const runsService = {
   list: (projectId: string, params?: Record<string, unknown>) =>
-    api.get('/api/v1/runs', { params: { project_id: projectId, ...params } }).then(r => r.data),
+    getData<TestRunListResponse>('/api/v1/runs', { params: { project_id: projectId, ...params } }),
 
   get: (runId: string) =>
-    api.get(`/api/v1/runs/${runId}`).then(r => r.data),
+    getData<TestRun>(`/api/v1/runs/${runId}`),
 
   listTests: (runId: string, params?: Record<string, unknown>) =>
-    api.get(`/api/v1/runs/${runId}/tests`, { params }).then(r => r.data),
+    getData<RunTestCaseListResponse>(`/api/v1/runs/${runId}/tests`, { params }),
 
   getTest: (runId: string, testId: string) =>
-    api.get(`/api/v1/runs/${runId}/tests/${testId}`).then(r => r.data),
+    getData<RunTestCase>(`/api/v1/runs/${runId}/tests/${testId}`),
 
   setRelease: (runId: string, releaseName: string) =>
-    api.post(`/api/v1/runs/${runId}/release`, { release_name: releaseName }).then(r => r.data),
+    postData(`/api/v1/runs/${runId}/release`, { release_name: releaseName }),
 }

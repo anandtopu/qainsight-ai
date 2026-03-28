@@ -10,6 +10,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useCoverage } from '@/hooks/useMetrics'
 import { useProjectStore } from '@/store/projectStore'
+import type { CoverageSummary } from '@/types/analytics'
 
 const PERIODS = [
   { label: '7d',  days: 7 },
@@ -62,7 +63,7 @@ export default function CoveragePage() {
     )
   }
 
-  const summary = coverageData?.summary ?? {}
+  const summary: Partial<CoverageSummary> = coverageData?.summary ?? {}
   const suites: SuiteRow[] = coverageData?.suites ?? []
 
   const topSuites = suites.slice(0, 15).map((s) => ({

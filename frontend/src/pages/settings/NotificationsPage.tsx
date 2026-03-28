@@ -10,11 +10,13 @@ import {
 } from '@/hooks/useNotifications'
 import {
   notificationService,
-  type NotificationChannel,
-  type NotificationEventType,
-  type NotificationPreference,
-  type NotificationPreferencePayload,
 } from '@/services/notificationService'
+import type {
+  NotificationChannel,
+  NotificationEventType,
+  NotificationPreference,
+  NotificationPreferencePayload,
+} from '@/types/notifications'
 
 // ── Config ────────────────────────────────────────────────────
 

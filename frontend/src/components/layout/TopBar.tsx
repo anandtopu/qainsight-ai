@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, Bell, CheckCircle, XCircle } from 'lucide-react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useProjectStore } from '@/store/projectStore'
-import { projectsService, type Project } from '@/services/projectsService'
+import { projectsService } from '@/services/projectsService'
 import { useAuthStore } from '@/store/authStore'
 import { UserCircle, LogOut } from 'lucide-react'
 import { useUnreadCount, useNotificationHistory, invalidateNotifications } from '@/hooks/useNotifications'
 import { notificationService } from '@/services/notificationService'
+import type { Project } from '@/types/projects'
 
 export default function TopBar() {
   const navigate = useNavigate()

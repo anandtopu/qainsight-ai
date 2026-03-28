@@ -14,8 +14,8 @@ import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useTrendData } from '@/hooks/useMetrics'
 import { useProjectStore } from '@/store/projectStore'
-import type { TrendPoint } from '@/services/metricsService'
-import { api } from '@/services/api'
+import type { TrendPoint } from '@/types/metrics'
+import { postData } from '@/services/http'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -238,7 +238,7 @@ function EmailModal({ onClose, projectId, days, enabledCharts }: EmailModalProps
     if (!email.trim()) { toast.error('Enter a recipient email'); return }
     setSending(true)
     try {
-      await api.post('/api/v1/reports/email-trends', {
+      await postData('/api/v1/reports/email-trends', {
         project_id: projectId,
         days,
         recipient_email: email.trim(),
