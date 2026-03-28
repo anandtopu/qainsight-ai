@@ -8,17 +8,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import PromptTemplate
-
 from app.core.config import settings
 from app.db.mongo import Collections, get_mongo_db
 from app.services.llm_factory import get_llm
-from app.tools.analyze_ocp import analyze_openshift_pod_events
-from app.tools.check_flakiness import check_test_flakiness
-from app.tools.fetch_rest_payload import fetch_rest_api_payload
-from app.tools.fetch_stacktrace import fetch_allure_stacktrace
-from app.tools.query_splunk import query_splunk_logs
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +60,12 @@ Thought: {agent_scratchpad}"""
 
 
 def _get_tools():
+    from app.tools.analyze_ocp import analyze_openshift_pod_events
+    from app.tools.check_flakiness import check_test_flakiness
+    from app.tools.fetch_rest_payload import fetch_rest_api_payload
+    from app.tools.fetch_stacktrace import fetch_allure_stacktrace
+    from app.tools.query_splunk import query_splunk_logs
+
     return [
         fetch_allure_stacktrace,
         fetch_rest_api_payload,
@@ -115,6 +113,9 @@ async def run_triage_agent(
             logger.debug("FastClassifier skipped: %s", fc_exc)
 
     # ── Slow path: full ReAct agent ───────────────────────────────────────────
+    from langchain.agents import AgentExecutor, create_react_agent
+    from langchain_core.prompts import PromptTemplate
+
     llm = get_llm()
     tools = _get_tools()
 

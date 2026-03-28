@@ -1,11 +1,10 @@
-"""Full-text search endpoint."""
-from datetime import datetime, timedelta, timezone
+"""Keyword search endpoint for test cases."""
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.postgres import get_db
+from app.services.search_service import search_test_cases_query
 
 router = APIRouter(prefix="/api/v1/search", tags=["Search"])
 
@@ -21,63 +20,24 @@ async def search_test_cases(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Full-text search across test names, suite names, class names, and error messages.
-    Uses PostgreSQL tsvector for fast indexed search.
+    Keyword search across test names, suite names, and error messages.
+    Uses SQLAlchemy query construction with ILIKE filters.
     """
-    # Build dynamic query
-    conditions = ["tc.test_name ILIKE :pattern OR tc.suite_name ILIKE :pattern OR tc.error_message ILIKE :pattern"]
-    params: dict = {"pattern": f"%{q}%", "offset": (page - 1) * size, "limit": size}
-
-    if project_id:
-        conditions.append("tr.project_id = :project_id")
-        params["project_id"] = project_id
-
-    if status:
-        conditions.append("tc.status = :status")
-        params["status"] = status.upper()
-
-    if days:
-        conditions.append("tc.created_at >= :period_start")
-        params["period_start"] = datetime.now(timezone.utc) - timedelta(days=days)
-
-    where_clause = " AND ".join(conditions)
-    query = text(f"""
-        SELECT
-            tc.id            AS test_case_id,
-            tc.test_run_id,
-            tc.test_name,
-            tc.suite_name,
-            tc.status,
-            tc.created_at    AS last_run_date,
-            COUNT(*) FILTER (WHERE tc2.status = 'FAILED') AS failure_count
-        FROM test_cases tc
-        JOIN test_runs tr ON tr.id = tc.test_run_id
-        LEFT JOIN test_cases tc2 ON tc2.test_fingerprint = tc.test_fingerprint
-        WHERE {where_clause}
-        GROUP BY tc.id, tc.test_run_id, tc.test_name, tc.suite_name, tc.status, tc.created_at
-        ORDER BY tc.created_at DESC
-        LIMIT :limit OFFSET :offset
-    """)
-
-    count_query = text(f"""
-        SELECT COUNT(DISTINCT tc.id)
-        FROM test_cases tc
-        JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE {where_clause}
-    """)
-
-    results = await db.execute(query, params)
-    rows = results.fetchall()
-
-    count_result = await db.execute(count_query, {k: v for k, v in params.items() if k not in ("offset", "limit")})
-    total = count_result.scalar() or 0
-
+    items, total, pages = await search_test_cases_query(
+        db,
+        q=q,
+        page=page,
+        size=size,
+        project_id=project_id,
+        status=status,
+        days=days,
+    )
     return {
-        "items": [dict(r._mapping) for r in rows],
+        "items": items,
         "total": total,
         "query": q,
         "search_type": "keyword",
         "page": page,
         "size": size,
-        "pages": -(-total // size),
+        "pages": pages,
     }
