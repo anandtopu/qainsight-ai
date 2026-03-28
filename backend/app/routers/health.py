@@ -18,7 +18,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -50,7 +50,7 @@ async def _check_mongo() -> dict[str, Any]:
     try:
         from app.db.mongo import get_mongo_db  # noqa: PLC0415
 
-        db = get_mongo_db()
+        db = cast(Any, get_mongo_db())
         await db.command("ping")
         return {"status": "ok"}
     except Exception as exc:
@@ -62,7 +62,7 @@ async def _check_redis() -> dict[str, Any]:
     try:
         from app.db.redis_client import get_redis  # noqa: PLC0415
 
-        redis = get_redis()
+        redis = cast(Any, get_redis())
         await redis.ping()
         return {"status": "ok"}
     except Exception as exc:

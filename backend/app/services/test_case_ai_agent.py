@@ -23,6 +23,12 @@ from app.services.llm_factory import get_llm
 logger = logging.getLogger(__name__)
 
 
+def _content_to_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 # ── Tool definitions ──────────────────────────────────────────────────────────
 
 @tool
@@ -65,8 +71,7 @@ Generate 3-8 test cases covering: happy path, edge cases, error conditions, boun
     human = HumanMessage(content=f"Generate test cases for:\n\n{requirements}")
     try:
         response = llm.invoke([system, human])
-        _raw = response.content if hasattr(response, "content") else str(response)
-        content = _raw if isinstance(_raw, str) else str(_raw)
+        content = _content_to_text(response.content if hasattr(response, "content") else response)
         # Extract JSON from response
         start = content.find("{")
         end = content.rfind("}") + 1
@@ -118,7 +123,7 @@ proper test data definition, no UI-dependency in unit tests, reproducible.""")
     human = HumanMessage(content=f"Review this test case:\n\n{test_case_json}")
     try:
         response = llm.invoke([system, human])
-        content = response.content if hasattr(response, "content") else str(response)
+        content = _content_to_text(response.content if hasattr(response, "content") else response)
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:
@@ -158,7 +163,7 @@ Return ONLY valid JSON:
     human = HumanMessage(content=f"Requirements:\n{requirements}\n\nExisting tests:\n{existing_tests_summary}")
     try:
         response = llm.invoke([system, human])
-        content = response.content if hasattr(response, "content") else str(response)
+        content = _content_to_text(response.content if hasattr(response, "content") else response)
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:
@@ -207,7 +212,7 @@ Return ONLY valid JSON:
     human = HumanMessage(content=f"Create a test strategy for:\n\n{project_context}")
     try:
         response = llm.invoke([system, human])
-        content = response.content if hasattr(response, "content") else str(response)
+        content = _content_to_text(response.content if hasattr(response, "content") else response)
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:
@@ -250,7 +255,7 @@ Prioritize: smoke tests first, critical path second, regression last. Group by f
     human = HumanMessage(content=f"Test cases:\n{test_cases_json}\n\nConstraints:\n{constraints}")
     try:
         response = llm.invoke([system, human])
-        content = response.content if hasattr(response, "content") else str(response)
+        content = _content_to_text(response.content if hasattr(response, "content") else response)
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:

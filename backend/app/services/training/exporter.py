@@ -17,7 +17,6 @@ Output format (per track):
   training-data/embedding/YYYY-MM-DD.jsonl
   training-data/classifier/holdout.jsonl  (10%, never trained on)
 """
-import io
 import json
 import logging
 import random
@@ -366,11 +365,11 @@ class TrainingDataExporter:
         from app.db.storage import get_storage_provider
         storage = get_storage_provider()
         content = "\n".join(json.dumps(r) for r in records).encode("utf-8")
-        await storage.upload_object(
-            bucket=settings.FINETUNE_EXPORT_BUCKET,
+        await storage.put_object(
             key=path,
-            body=io.BytesIO(content),
             content_type="application/jsonl",
+            content=content,
+            bucket=settings.FINETUNE_EXPORT_BUCKET,
         )
 
 
