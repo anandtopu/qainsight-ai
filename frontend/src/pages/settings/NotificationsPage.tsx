@@ -350,12 +350,17 @@ function SmtpConfigCard() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      const passwordPayload =
+        password === ''
+          ? (passwordSet ? '' : null)
+          : password
+
       const updated = await appSettingsService.updateSmtpConfig({
         enabled,
         host,
         port,
         user: user || null,
-        password: password || null,
+        password: passwordPayload,
         from_address: fromAddress,
         tls,
       })
