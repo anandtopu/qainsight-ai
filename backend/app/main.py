@@ -5,44 +5,18 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog  # type: ignore
-from fastapi import Depends, FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler  # type: ignore
 from slowapi.errors import RateLimitExceeded  # type: ignore
 from slowapi.util import get_remote_address  # type: ignore
 
+from app.bootstrap import configure_metrics, configure_middlewares, register_routers
 from app.core.config import settings
-from app.core.deps import get_current_active_user
 from app.core.logging_config import configure_logging
 from app.db.mongo import close_mongo, get_mongo_db
 from app.db.postgres import close_db
 from app.db.redis_client import close_redis
-from app.routers import (
-    agents,
-    analyze,
-    analytics,
-    auth,
-    chat,
-    deep_investigation,
-    debug,
-    feedback,
-    integrations,
-    live,
-    metrics,
-    notifications,
-    projects,
-    release_readiness,
-    releases,
-    reports,
-    runs,
-    search,
-    stream,
-    test_management,
-    webhooks,
-)
-from app.routers.health import router as health_router
-from app.routers.observability import router as observability_router
 
 # ── Structured logging ────────────────────────────────────────
 configure_logging()
@@ -133,71 +107,9 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
-
-# ── CORS ─────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Webhook-Secret", "X-Request-ID"],
-)
-
-# ── Telemetry middleware (request logging + X-Request-ID) ────
-from app.middleware.telemetry import TelemetryMiddleware  # noqa: PLC0415, E402
-
-app.add_middleware(TelemetryMiddleware)
-
-# ── Prometheus /metrics endpoint ─────────────────────────────
-if settings.METRICS_ENABLED:
-    from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore  # noqa: PLC0415, E402
-
-    Instrumentator(
-        should_group_status_codes=True,
-        should_ignore_untemplated=True,
-        excluded_handlers=["/metrics", "/health/live", "/health/ready"],
-    ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
-
-# ── Routers ───────────────────────────────────────────────────
-# Public
-app.include_router(auth.router)
-
-# Webhook — protected by X-Webhook-Secret header (see deps.verify_webhook_secret)
-app.include_router(webhooks.router)
-
-# Protected — require a valid JWT access token
-protected_deps = [Depends(get_current_active_user)]
-
-app.include_router(projects.router, dependencies=protected_deps)
-app.include_router(runs.router, dependencies=protected_deps)
-app.include_router(metrics.router, dependencies=protected_deps)
-app.include_router(search.router, dependencies=protected_deps)
-app.include_router(analyze.router, dependencies=protected_deps)
-app.include_router(analytics.router, dependencies=protected_deps)
-app.include_router(integrations.router, dependencies=protected_deps)
-app.include_router(notifications.router, dependencies=protected_deps)
-app.include_router(live.router, dependencies=protected_deps)
-app.include_router(agents.router, dependencies=protected_deps)
-app.include_router(chat.router, dependencies=protected_deps)
-app.include_router(feedback.router, dependencies=protected_deps)
-app.include_router(deep_investigation.router, dependencies=protected_deps)
-app.include_router(release_readiness.router, dependencies=protected_deps)
-app.include_router(releases.router, dependencies=protected_deps)
-app.include_router(reports.router, dependencies=protected_deps)
-app.include_router(test_management.router, dependencies=protected_deps)
-# Live streaming — sessions + active list are JWT-protected;
-# POST /events/batch uses X-Session-Token (no JWT) for hot-path performance;
-# GET /sse/{project_id} validates JWT from query param (browser EventSource)
-app.include_router(stream.router)
-
-# Observability — public (no JWT required: browser fires-and-forgets)
-app.include_router(observability_router)
-
-# Health checks — public
-app.include_router(health_router)
-
-# Debug — ADMIN only (role check applied at endpoint level in debug.py)
-app.include_router(debug.router, prefix="/api/v1/debug", tags=["Debug"], dependencies=protected_deps)
+configure_middlewares(app)
+configure_metrics(app)
+register_routers(app)
 
 
 # ── Login rate limit (applied here to avoid importing limiter into auth.py) ──

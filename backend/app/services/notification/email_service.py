@@ -1,6 +1,6 @@
 """Async SMTP email delivery via aiosmtplib."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -72,7 +72,7 @@ def _build_html(
           <td style="padding:4px 8px;color:#f1f5f9;font-size:13px;">#{build_number}</td>
         </tr>"""
 
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     return f"""<!DOCTYPE html>
 <html lang="en">

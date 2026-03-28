@@ -32,8 +32,7 @@ class UserResponse(TimestampMixin):
     role: UserRole
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):
@@ -78,8 +77,7 @@ class ProjectResponse(TimestampMixin):
     ocp_namespace: Optional[str] = None
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Test Run Schemas ──────────────────────────────────────────
@@ -105,8 +103,7 @@ class TestRunSummary(BaseModel):
     end_time: Optional[datetime] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TestRunListResponse(BaseModel):
@@ -133,8 +130,7 @@ class TestCaseSummary(BaseModel):
     has_attachments: bool = False
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TestCaseDetail(TestCaseSummary):
@@ -285,8 +281,7 @@ class SearchResult(BaseModel):
     failure_count: int
     relevance_score: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SearchResponse(BaseModel):
@@ -349,8 +344,7 @@ class NotificationPreferenceResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationLogResponse(BaseModel):
@@ -364,8 +358,7 @@ class NotificationLogResponse(BaseModel):
     sent_at: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TestNotificationRequest(BaseModel):
@@ -387,8 +380,7 @@ class AgentStageResultResponse(BaseModel):
     result_data: Optional[Any] = None
     error: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AgentPipelineResponse(BaseModel):
@@ -401,8 +393,7 @@ class AgentPipelineResponse(BaseModel):
     error: Optional[str] = None
     created_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Chat Schemas ───────────────────────────────────────────────
@@ -419,8 +410,7 @@ class ChatSessionResponse(BaseModel):
     created_at: Any
     updated_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatMessageResponse(BaseModel):
@@ -431,8 +421,7 @@ class ChatMessageResponse(BaseModel):
     sources: Optional[List[Any]] = None
     created_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SendMessageRequest(BaseModel):

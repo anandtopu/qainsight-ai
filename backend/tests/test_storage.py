@@ -1,16 +1,22 @@
-import tempfile
-import pytest
 from pathlib import Path
+import shutil
+
+import pytest
 
 from app.core.config import settings
 from app.db.storage import LocalStorageProvider
 
 @pytest.fixture
 def temp_storage_path(monkeypatch):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        monkeypatch.setattr(settings, "LOCAL_STORAGE_PATH", tmpdir)
-        monkeypatch.setattr(settings, "STORAGE_BACKEND", "local")
-        yield tmpdir
+    storage_root = Path.cwd() / "backend" / "tmp_storage_test"
+    shutil.rmtree(storage_root, ignore_errors=True)
+    storage_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(settings, "LOCAL_STORAGE_PATH", str(storage_root))
+    monkeypatch.setattr(settings, "STORAGE_BACKEND", "local")
+    try:
+        yield str(storage_root)
+    finally:
+        shutil.rmtree(storage_root, ignore_errors=True)
 
 @pytest.mark.asyncio
 async def test_local_storage_provider(temp_storage_path):
