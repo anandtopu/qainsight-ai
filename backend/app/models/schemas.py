@@ -911,3 +911,45 @@ class LiveSessionState(BaseModel):
 class ActiveSessionsResponse(BaseModel):
     sessions: List[LiveSessionState]
     count: int
+
+
+# ── SMTP / App Settings Schemas ────────────────────────────────
+
+class SmtpConfigRead(BaseModel):
+    """SMTP server configuration returned to the client (no password)."""
+    enabled: bool
+    host: str
+    port: int
+    user: Optional[str]
+    from_address: str
+    implicit_tls: bool = Field(
+        description=(
+            "When True, implicit TLS (SSL/TLS on connect, typically port 465) is used. "
+            "When False, STARTTLS (upgrade after connect, typically port 587) is used. "
+            "Plain (unencrypted) SMTP is not supported."
+        )
+    )
+    password_set: bool  # True if a password is stored; never returns the value
+
+
+class SmtpConfigUpdate(BaseModel):
+    """Payload for updating SMTP server configuration."""
+    enabled: bool = False
+    host: str = Field(default="localhost", max_length=255)
+    port: int = Field(default=587, ge=1, le=65535)
+    user: Optional[str] = Field(default=None, max_length=255)
+    password: Optional[str] = Field(default=None, max_length=1000)  # None = keep existing
+    from_address: str = Field(default="noreply@qainsight.io", max_length=255)
+    implicit_tls: bool = Field(
+        default=True,
+        description=(
+            "When True, implicit TLS (SSL/TLS on connect, typically port 465) is used. "
+            "When False, STARTTLS (upgrade after connect, typically port 587) is used. "
+            "Plain (unencrypted) SMTP is not supported."
+        ),
+    )
+
+
+class SmtpTestResult(BaseModel):
+    success: bool
+    message: str

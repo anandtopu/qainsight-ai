@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Bell, Mail, MessageSquare, Users, CheckCircle, XCircle, Send, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Bell, Mail, MessageSquare, Users, CheckCircle, XCircle, Send, Trash2, ChevronDown, ChevronUp, Server, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -11,6 +11,8 @@ import {
 import {
   notificationService,
 } from '@/services/notificationService'
+import { appSettingsService } from '@/services/appSettingsService'
+import type { SmtpConfigRead } from '@/services/appSettingsService'
 import type {
   NotificationChannel,
   NotificationEventType,
@@ -313,6 +315,252 @@ function ChannelCard({
   )
 }
 
+// ── SMTP configuration card ───────────────────────────────────
+
+function SmtpConfigCard() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+
+  const [enabled, setEnabled] = useState(false)
+  const [host, setHost] = useState('localhost')
+  const [port, setPort] = useState(587)
+  const [user, setUser] = useState('')
+  const [password, setPassword] = useState('')
+  const [fromAddress, setFromAddress] = useState('noreply@qainsight.io')
+  const [implicitTls, setImplicitTls] = useState(true)
+  const [passwordSet, setPasswordSet] = useState(false)
+
+  useEffect(() => {
+    appSettingsService.getSmtpConfig()
+      .then((cfg: SmtpConfigRead) => {
+        setEnabled(cfg.enabled)
+        setHost(cfg.host)
+        setPort(cfg.port)
+        setUser(cfg.user ?? '')
+        setFromAddress(cfg.from_address)
+        setImplicitTls(cfg.implicit_tls)
+        setPasswordSet(cfg.password_set)
+      })
+      .catch(() => {/* insufficient role — card stays at defaults */})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const passwordPayload =
+        password === ''
+          ? (passwordSet ? '' : null)
+          : password
+
+      const updated = await appSettingsService.updateSmtpConfig({
+        enabled,
+        host,
+        port,
+        user: user || null,
+        password: passwordPayload,
+        from_address: fromAddress,
+        implicit_tls: implicitTls,
+      })
+      setPasswordSet(updated.password_set)
+      setPassword('')
+      toast.success('SMTP configuration saved')
+    } catch {
+      toast.error('Failed to save SMTP configuration')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    try {
+      const result = await appSettingsService.testSmtpConfig()
+      if (result.success) {
+        toast.success(result.message)
+      } else {
+        toast.error(result.message)
+      }
+    } catch {
+      toast.error('Test connection failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="card border border-slate-700 rounded-lg overflow-hidden">
+      <div className="flex items-center gap-3 p-4 border-b border-slate-700">
+        <div className="p-2 rounded-lg bg-slate-800 text-blue-400">
+          <Server className="w-4 h-4" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-slate-200">Email Server (SMTP)</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Configure the outgoing mail server for email notifications
+          </p>
+        </div>
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+            enabled
+              ? 'bg-emerald-900/40 text-emerald-400'
+              : 'bg-slate-700 text-slate-400'
+          }`}
+        >
+          {enabled ? 'Active' : 'Disabled'}
+        </span>
+      </div>
+
+      <div className="p-4 space-y-5">
+        {loading ? (
+          <div className="flex justify-center py-4"><LoadingSpinner size="sm" /></div>
+        ) : (
+          <>
+            {/* Enable toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-300">Enable SMTP email delivery</span>
+              <button
+                onClick={() => setEnabled(v => !v)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  enabled ? 'bg-blue-600' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    enabled ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Host */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">SMTP Host</label>
+                <input
+                  type="text"
+                  value={host}
+                  onChange={e => setHost(e.target.value)}
+                  placeholder="smtp.example.com"
+                  className="input w-full text-sm"
+                />
+              </div>
+              {/* Port */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Port</label>
+                <input
+                  type="number"
+                  value={port}
+                  onChange={e => setPort(Number(e.target.value))}
+                  min={1}
+                  max={65535}
+                  className="input w-full text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Username */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Username <span className="text-slate-600">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={user}
+                onChange={e => setUser(e.target.value)}
+                placeholder="smtp-user@example.com"
+                className="input w-full text-sm"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Password{' '}
+                <span className="text-slate-600">
+                  {passwordSet ? '(stored — leave blank to keep)' : '(optional)'}
+                </span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={passwordSet ? '••••••••' : 'Enter password'}
+                  className="input w-full text-sm pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* From address */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">From Address</label>
+              <input
+                type="email"
+                value={fromAddress}
+                onChange={e => setFromAddress(e.target.value)}
+                placeholder="noreply@qainsight.io"
+                className="input w-full text-sm"
+              />
+            </div>
+
+            {/* TLS / STARTTLS mode toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm text-slate-300">Connection security mode</span>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Toggle between implicit TLS (typically port 465) and STARTTLS (typically port 587). Plain SMTP is not supported.
+                </p>
+              </div>
+              <button
+                onClick={() => setImplicitTls(v => !v)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  implicitTls ? 'bg-blue-600' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    implicitTls ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary flex items-center gap-2 text-sm px-4 py-2"
+              >
+                {saving ? <LoadingSpinner size="sm" /> : <CheckCircle className="w-4 h-4" />}
+                Save
+              </button>
+              <button
+                onClick={handleTest}
+                disabled={testing || !enabled}
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {testing ? <LoadingSpinner size="sm" /> : <Send className="w-4 h-4" />}
+                Send test email
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Notification history panel ────────────────────────────────
 
 function HistoryPanel() {
@@ -412,6 +660,8 @@ export default function NotificationsPage() {
         title="Notification Settings"
         subtitle="Choose how and when QA Insight alerts you about test results"
       />
+
+      <SmtpConfigCard />
 
       {isLoading ? (
         <div className="flex justify-center py-12">
