@@ -7,7 +7,8 @@ export interface SmtpConfigRead {
   port: number
   user: string | null
   from_address: string
-  tls: boolean
+  /** True = implicit TLS (port 465); False = STARTTLS (port 587). Plain SMTP is not supported. */
+  implicit_tls: boolean
   password_set: boolean
 }
 
@@ -18,7 +19,8 @@ export interface SmtpConfigUpdate {
   user: string | null
   password: string | null  // null = keep existing
   from_address: string
-  tls: boolean
+  /** True = implicit TLS (port 465); False = STARTTLS (port 587). Plain SMTP is not supported. */
+  implicit_tls: boolean
 }
 
 export interface SmtpTestResult {

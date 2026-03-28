@@ -329,7 +329,7 @@ function SmtpConfigCard() {
   const [user, setUser] = useState('')
   const [password, setPassword] = useState('')
   const [fromAddress, setFromAddress] = useState('noreply@qainsight.io')
-  const [tls, setTls] = useState(true)
+  const [implicitTls, setImplicitTls] = useState(true)
   const [passwordSet, setPasswordSet] = useState(false)
 
   useEffect(() => {
@@ -340,7 +340,7 @@ function SmtpConfigCard() {
         setPort(cfg.port)
         setUser(cfg.user ?? '')
         setFromAddress(cfg.from_address)
-        setTls(cfg.tls)
+        setImplicitTls(cfg.implicit_tls)
         setPasswordSet(cfg.password_set)
       })
       .catch(() => {/* insufficient role — card stays at defaults */})
@@ -362,7 +362,7 @@ function SmtpConfigCard() {
         user: user || null,
         password: passwordPayload,
         from_address: fromAddress,
-        tls,
+        implicit_tls: implicitTls,
       })
       setPasswordSet(updated.password_set)
       setPassword('')
@@ -522,14 +522,14 @@ function SmtpConfigCard() {
                 </p>
               </div>
               <button
-                onClick={() => setTls(v => !v)}
+                onClick={() => setImplicitTls(v => !v)}
                 className={`relative w-11 h-6 rounded-full transition-colors ${
-                  tls ? 'bg-blue-600' : 'bg-slate-700'
+                  implicitTls ? 'bg-blue-600' : 'bg-slate-700'
                 }`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                    tls ? 'translate-x-5' : ''
+                    implicitTls ? 'translate-x-5' : ''
                   }`}
                 />
               </button>

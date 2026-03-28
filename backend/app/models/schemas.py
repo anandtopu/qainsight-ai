@@ -922,7 +922,13 @@ class SmtpConfigRead(BaseModel):
     port: int
     user: Optional[str]
     from_address: str
-    tls: bool
+    implicit_tls: bool = Field(
+        description=(
+            "When True, implicit TLS (SSL/TLS on connect, typically port 465) is used. "
+            "When False, STARTTLS (upgrade after connect, typically port 587) is used. "
+            "Plain (unencrypted) SMTP is not supported."
+        )
+    )
     password_set: bool  # True if a password is stored; never returns the value
 
 
@@ -934,7 +940,14 @@ class SmtpConfigUpdate(BaseModel):
     user: Optional[str] = Field(default=None, max_length=255)
     password: Optional[str] = Field(default=None, max_length=1000)  # None = keep existing
     from_address: str = Field(default="noreply@qainsight.io", max_length=255)
-    tls: bool = True
+    implicit_tls: bool = Field(
+        default=True,
+        description=(
+            "When True, implicit TLS (SSL/TLS on connect, typically port 465) is used. "
+            "When False, STARTTLS (upgrade after connect, typically port 587) is used. "
+            "Plain (unencrypted) SMTP is not supported."
+        ),
+    )
 
 
 class SmtpTestResult(BaseModel):

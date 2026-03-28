@@ -51,7 +51,7 @@ async def get_smtp_config(
         port=cfg.get("port", 587),
         user=cfg.get("user") or None,
         from_address=cfg.get("from_address", "noreply@qainsight.io"),
-        tls=cfg.get("tls", True),
+        implicit_tls=cfg.get("tls", True),
         password_set=bool(cfg.get("password")),
     )
 
@@ -76,7 +76,7 @@ async def update_smtp_config(
         "user": payload.user,
         "password": password,
         "from_address": payload.from_address,
-        "tls": payload.tls,
+        "tls": payload.implicit_tls,
     }
 
     stmt = pg_insert(AppSetting).values(key=_SMTP_KEY, value=new_value)
@@ -91,7 +91,7 @@ async def update_smtp_config(
         port=payload.port,
         user=payload.user or None,
         from_address=payload.from_address,
-        tls=payload.tls,
+        implicit_tls=payload.implicit_tls,
         password_set=bool(password),
     )
 
