@@ -1,21 +1,41 @@
+# ── Celery Worker Deployments ──────────────────────────────────────────────
+#
+# Each queue runs as a SEPARATE Deployment so Kubernetes can scale them
+# independently based on their individual CPU / memory / queue-depth signals.
+#
+#  worker-critical   — real-time "critical" queue  (live test analysis, LLM)
+#  worker-ingestion  — "ingestion" queue            (MinIO → DB parsing)
+#  worker-ai         — "ai_analysis" queue          (full LangGraph pipeline)
+#  worker-default    — "default" queue              (notifications, housekeeping)
+#  beat              — Celery beat scheduler        (always exactly 1 replica)
+#
+# HPAs live in hpa.yaml; replicas here are the floor for non-prod environments.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── worker-critical: real-time analysis (critical queue) ─────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qainsight-worker
+  name: qainsight-worker-critical
   namespace: qainsight-ai
   labels:
-    app: qainsight-worker
+    app: qainsight-worker-critical
+    app.kubernetes.io/component: worker
+    queue: critical
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qainsight-worker
+      app: qainsight-worker-critical
   template:
     metadata:
       labels:
-        app: qainsight-worker
+        app: qainsight-worker-critical
+        app.kubernetes.io/component: worker
+        queue: critical
     spec:
       serviceAccountName: qainsight-sa
+      terminationGracePeriodSeconds: 60   # allow in-flight tasks to finish
       containers:
         - name: worker
           image: qainsight/backend:latest
@@ -26,9 +46,10 @@ spec:
             - app.worker.celery_app
             - worker
             - --loglevel=info
-            - --concurrency=4
+            - --concurrency=2           # lower concurrency — LLM tasks are memory-heavy
             - -Q
-            - default,ingestion,ai_analysis
+            - critical
+            - --max-tasks-per-child=100
           envFrom:
             - configMapRef:
                 name: qainsight-config
@@ -43,9 +64,206 @@ spec:
               memory: 2Gi
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qainsight-worker-critical
+                topologyKey: kubernetes.io/hostname
+---
+# ── worker-ingestion: test report parsing (ingestion queue) ──────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-worker-ingestion
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-worker-ingestion
+    app.kubernetes.io/component: worker
+    queue: ingestion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-worker-ingestion
+  template:
+    metadata:
+      labels:
+        app: qainsight-worker-ingestion
+        app.kubernetes.io/component: worker
+        queue: ingestion
+    spec:
+      serviceAccountName: qainsight-sa
+      terminationGracePeriodSeconds: 120   # parsing can take time
+      containers:
+        - name: worker
+          image: qainsight/backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - -Q
+            - ingestion
+            - --max-tasks-per-child=200
+          envFrom:
+            - configMapRef:
+                name: qainsight-config
+            - secretRef:
+                name: qainsight-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qainsight-worker-ingestion
+                topologyKey: kubernetes.io/hostname
+---
+# ── worker-ai: multi-agent LangGraph pipeline (ai_analysis queue) ────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-worker-ai
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-worker-ai
+    app.kubernetes.io/component: worker
+    queue: ai_analysis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-worker-ai
+  template:
+    metadata:
+      labels:
+        app: qainsight-worker-ai
+        app.kubernetes.io/component: worker
+        queue: ai_analysis
+    spec:
+      serviceAccountName: qainsight-sa
+      terminationGracePeriodSeconds: 1860  # match Celery hard time limit (31 min)
+      containers:
+        - name: worker
+          image: qainsight/backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=2           # LangGraph pipelines are CPU+memory heavy
+            - -Q
+            - ai_analysis
+            - --max-tasks-per-child=50  # lower limit: prevent LLM memory leaks
+          envFrom:
+            - configMapRef:
+                name: qainsight-config
+            - secretRef:
+                name: qainsight-secrets
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qainsight-worker-ai
+                topologyKey: kubernetes.io/hostname
+---
+# ── worker-default: notifications, housekeeping (default queue) ──────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qainsight-worker-default
+  namespace: qainsight-ai
+  labels:
+    app: qainsight-worker-default
+    app.kubernetes.io/component: worker
+    queue: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qainsight-worker-default
+  template:
+    metadata:
+      labels:
+        app: qainsight-worker-default
+        app.kubernetes.io/component: worker
+        queue: default
+    spec:
+      serviceAccountName: qainsight-sa
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: qainsight/backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - -Q
+            - default
+            - --max-tasks-per-child=200
+          envFrom:
+            - configMapRef:
+                name: qainsight-config
+            - secretRef:
+                name: qainsight-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
 ---
+# ── beat: Celery beat scheduler (always exactly 1 replica — never scaled) ─────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -53,15 +271,19 @@ metadata:
   namespace: qainsight-ai
   labels:
     app: qainsight-beat
+    app.kubernetes.io/component: scheduler
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: qainsight-beat
+  strategy:
+    type: Recreate              # beat MUST NOT run as two instances simultaneously
   template:
     metadata:
       labels:
         app: qainsight-beat
+        app.kubernetes.io/component: scheduler
     spec:
       serviceAccountName: qainsight-sa
       containers:
@@ -88,6 +310,6 @@ spec:
               memory: 1Gi
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-

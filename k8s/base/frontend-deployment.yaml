@@ -5,15 +5,22 @@ metadata:
   namespace: qainsight-ai
   labels:
     app: qainsight-frontend
+    app.kubernetes.io/component: frontend
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: qainsight-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
         app: qainsight-frontend
+        app.kubernetes.io/component: frontend
     spec:
       containers:
         - name: frontend
@@ -35,9 +42,39 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 2
+            timeoutSeconds: 3
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: qainsight-frontend
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: qainsight-frontend
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qainsight-frontend
+                topologyKey: kubernetes.io/hostname

@@ -1,26 +1,3 @@
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: qainsight-worker-hpa
-  namespace: qainsight-ai
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: qainsight-worker
-  minReplicas: 2
-  maxReplicas: 8
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 80
-
+# Worker HPAs have been consolidated into k8s/base/hpa.yaml.
+# This file is intentionally empty — kept to avoid breaking any external references.
+# All HPA tuning for production is done via patches in kustomization.yaml.

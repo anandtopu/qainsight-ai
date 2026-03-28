@@ -7,7 +7,7 @@ resources:
 namespace: qainsight-staging
 
 patches:
-  # Keep staging closer to production while controlling costs.
+  # ── Replica overrides ────────────────────────────────────────────────────
   - patch: |-
       - op: replace
         path: /spec/replicas
@@ -30,7 +30,31 @@ patches:
         value: 1
     target:
       kind: Deployment
-      name: qainsight-worker
+      name: qainsight-worker-critical
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker-ingestion
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker-ai
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker-default
 
   - patch: |-
       - op: replace
@@ -40,6 +64,64 @@ patches:
       kind: Deployment
       name: qainsight-beat
 
+  # ── HPA caps — tighter in staging to control costs ───────────────────────
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-backend-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-frontend-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-critical-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-ingestion-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-ai-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-default-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-mcp-hpa
+
+  # ── Environment configuration ─────────────────────────────────────────────
   - patch: |-
       apiVersion: v1
       kind: ConfigMap
@@ -61,4 +143,3 @@ images:
     newTag: staging-latest
   - name: qainsight/mcp
     newTag: staging-latest
-

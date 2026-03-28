@@ -1,7 +1,7 @@
 # ============================================================
 # QA Insight AI — Developer Makefile
 # ============================================================
-.PHONY: help dev stop build test-backend test-frontend migrate lint clean logs pull-llm k8s-rollout-async k8s-rollout-async-dev k8s-rollout-async-staging k8s-rollout-async-prod k8s-status-async k8s-status-openshift
+.PHONY: help dev stop build test-backend test-frontend migrate lint clean logs pull-llm k8s-rollout-async k8s-rollout-async-dev k8s-rollout-async-staging k8s-rollout-async-prod k8s-status-async k8s-status-openshift k8s-scale-worker
 
 DOCKER_COMPOSE = docker compose
 BACKEND_CONTAINER = qainsight_backend
@@ -129,9 +129,12 @@ k8s-deploy-openshift: ## Deploy using OpenShift-compatible overlay
 k8s-status: ## Show Kubernetes deployment status
 	kubectl get pods,svc,ing -n qainsight-ai
 
-k8s-rollout-async: ## Wait for async deployments (worker + beat) in a namespace
-	kubectl rollout status deployment/qainsight-worker -n $(K8S_NAMESPACE) --timeout=180s
-	kubectl rollout status deployment/qainsight-beat -n $(K8S_NAMESPACE) --timeout=120s
+k8s-rollout-async: ## Wait for all queue-specific worker deployments to finish rolling out
+	kubectl rollout status deployment/qainsight-worker-critical  -n $(K8S_NAMESPACE) --timeout=180s
+	kubectl rollout status deployment/qainsight-worker-ingestion -n $(K8S_NAMESPACE) --timeout=180s
+	kubectl rollout status deployment/qainsight-worker-ai        -n $(K8S_NAMESPACE) --timeout=180s
+	kubectl rollout status deployment/qainsight-worker-default   -n $(K8S_NAMESPACE) --timeout=120s
+	kubectl rollout status deployment/qainsight-beat             -n $(K8S_NAMESPACE) --timeout=120s
 
 k8s-rollout-async-dev: ## Wait for async rollout in dev namespace
 	$(MAKE) k8s-rollout-async K8S_NAMESPACE=qainsight-dev
@@ -142,9 +145,15 @@ k8s-rollout-async-staging: ## Wait for async rollout in staging namespace
 k8s-rollout-async-prod: ## Wait for async rollout in prod namespace
 	$(MAKE) k8s-rollout-async K8S_NAMESPACE=qainsight-ai
 
-k8s-status-async: ## Show worker/beat deployments and HPAs in a namespace
-	kubectl get deployment/qainsight-worker deployment/qainsight-beat -n $(K8S_NAMESPACE)
+k8s-status-async: ## Show all queue-specific worker deployments and HPAs in a namespace
+	kubectl get deployment \
+	  qainsight-worker-critical qainsight-worker-ingestion \
+	  qainsight-worker-ai qainsight-worker-default qainsight-beat \
+	  -n $(K8S_NAMESPACE)
 	kubectl get hpa -n $(K8S_NAMESPACE)
+
+k8s-scale-worker: ## Manually scale a specific worker queue (QUEUE=ai REPLICAS=3)
+	kubectl scale deployment/qainsight-worker-$(QUEUE) --replicas=$(REPLICAS) -n $(K8S_NAMESPACE)
 
 k8s-status-openshift: ## Show OpenShift routes (if Route API is enabled)
 	kubectl get route -n $(K8S_NAMESPACE)
