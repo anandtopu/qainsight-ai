@@ -3,12 +3,50 @@ import logging
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
 import aiosmtplib  # type: ignore
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ── DB-backed SMTP config resolver ────────────────────────────
+
+async def _get_smtp_cfg() -> dict[str, Any]:
+    """
+    Return effective SMTP configuration.
+
+    Priority: DB-stored value → environment variable defaults.
+    Imports are local to avoid circular imports at module load time.
+    """
+    try:
+        from sqlalchemy import select
+
+        from app.db.postgres import AsyncSessionLocal
+        from app.models.postgres import AppSetting
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(AppSetting).where(AppSetting.key == "smtp_config")
+            )
+            row = result.scalar_one_or_none()
+            if row and row.value:
+                return dict(row.value)
+    except Exception as exc:
+        logger.debug("Could not load SMTP config from DB, falling back to env: %s", exc)
+
+    # Env-var fallback
+    return {
+        "enabled": settings.SMTP_ENABLED,
+        "host": settings.SMTP_HOST,
+        "port": settings.SMTP_PORT,
+        "user": settings.SMTP_USER,
+        "password": settings.SMTP_PASSWORD,
+        "from_address": settings.SMTP_FROM,
+        "tls": settings.SMTP_TLS,
+    }
 
 # ── HTML template helpers ─────────────────────────────────────
 
@@ -141,26 +179,29 @@ async def send_notification(
     Send an HTML + plain-text notification email via SMTP.
     Raises on delivery failure — caller is responsible for logging / retrying.
     """
-    if not settings.SMTP_ENABLED:
+    cfg = await _get_smtp_cfg()
+
+    if not cfg.get("enabled"):
         logger.debug("SMTP disabled — skipping email to %s", to)
         return
 
     meta = metadata or {}
     msg = MIMEMultipart("alternative")
     msg["Subject"] = title
-    msg["From"] = settings.SMTP_FROM
+    msg["From"] = cfg.get("from_address", settings.SMTP_FROM)
     msg["To"] = to
 
     msg.attach(MIMEText(_build_plain(title, body, meta), "plain"))
     msg.attach(MIMEText(_build_html(title, body, event_type, meta), "html"))
 
+    use_tls = bool(cfg.get("tls", True))
     await aiosmtplib.send(
         msg,
-        hostname=settings.SMTP_HOST,
-        port=settings.SMTP_PORT,
-        username=settings.SMTP_USER or None,
-        password=settings.SMTP_PASSWORD or None,
-        use_tls=settings.SMTP_TLS,
-        start_tls=not settings.SMTP_TLS,  # STARTTLS for port 587
+        hostname=cfg.get("host", settings.SMTP_HOST),
+        port=int(cfg.get("port", settings.SMTP_PORT)),
+        username=cfg.get("user") or None,
+        password=cfg.get("password") or None,
+        use_tls=use_tls,
+        start_tls=not use_tls,  # STARTTLS for port 587
     )
     logger.info("Email sent to %s — event=%s", to, event_type)

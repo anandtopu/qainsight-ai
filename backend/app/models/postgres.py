@@ -990,3 +990,16 @@ class ReleaseTestRunLink(Base):
 
     # Relationships
     release: Mapped["Release"] = relationship("Release", back_populates="test_run_links")
+
+
+class AppSetting(Base):
+    """Key-value store for application-level configuration (e.g. SMTP settings)."""
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        onupdate=func.now(),
+        server_default=func.now(),
+    )
