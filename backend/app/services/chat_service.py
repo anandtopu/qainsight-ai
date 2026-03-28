@@ -89,7 +89,7 @@ async def list_sessions(db: AsyncSession, current_user) -> list[ChatSession]:
     result = await db.execute(
         select(ChatSession).where(ChatSession.user_id == current_user.id).order_by(ChatSession.updated_at.desc()).limit(50)
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def create_session(db: AsyncSession, payload, current_user) -> ChatSession:
@@ -124,7 +124,7 @@ async def get_messages(db: AsyncSession, session_id: uuid.UUID, limit: int, curr
     result = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).limit(limit)
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def send_message(db: AsyncSession, session_id: uuid.UUID, payload, current_user):

@@ -141,10 +141,10 @@ class FineTuningPipeline:
         gguf_path = training_path.replace(".jsonl", ".gguf")
 
         try:
-            from app.db.storage import get_storage
+            from app.db.storage import get_storage_provider
             import tempfile
             import pathlib
-            storage = get_storage()
+            storage = get_storage_provider()
             gguf_bytes = await storage.get_object_content(
                 gguf_path, bucket=settings.FINETUNE_EXPORT_BUCKET
             )

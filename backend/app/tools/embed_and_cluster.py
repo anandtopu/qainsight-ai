@@ -5,7 +5,7 @@ Groups test failures by root cause before deep investigation (reduces O(n) → O
 import asyncio
 import hashlib
 import logging
-from typing import Any
+from typing import Any, cast
 
 import chromadb  # type: ignore
 from langchain_core.tools import tool  # type: ignore
@@ -124,5 +124,5 @@ async def embed_and_cluster(error_messages_json: str) -> str:
         })
 
     # Sort by size descending (largest cluster first)
-    clusters.sort(key=lambda c: int(c["size"]), reverse=True)
+    clusters.sort(key=lambda c: cast(int, c["size"]), reverse=True)
     return json.dumps({"clusters": clusters})

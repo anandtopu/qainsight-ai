@@ -178,7 +178,7 @@ async def analyze_case_coverage(db: AsyncSession, payload: AICoverageAnalysisReq
 
 async def list_strategies(db: AsyncSession, project_id: uuid.UUID) -> list[TestStrategy]:
     result = await db.execute(select(TestStrategy).where(TestStrategy.project_id == project_id).order_by(TestStrategy.created_at.desc()))
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def generate_ai_strategy(

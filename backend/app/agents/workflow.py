@@ -358,7 +358,7 @@ async def run_offline_pipeline(
             "Starting %s pipeline %s for run %s (build=%s)",
             workflow_type, pipeline_run_id, test_run_id, build_number,
         )
-        final_state = await app.ainvoke(initial_state)
+        final_state = await cast(Any, app).ainvoke(initial_state)
         await _mark_pipeline_done(pipeline_run_id, success=True)
         logger.info(
             "Pipeline %s complete. stages=%s errors=%d",
@@ -421,7 +421,7 @@ async def run_deep_pipeline(
             "Starting deep pipeline %s for run %s (build=%s)",
             pipeline_run_id, test_run_id, build_number,
         )
-        final_state = await _deep_app.ainvoke(initial_state)
+        final_state = await cast(Any, _deep_app).ainvoke(initial_state)
         await _mark_pipeline_done(pipeline_run_id, success=True)
         logger.info(
             "Deep pipeline %s complete. stages=%s errors=%d",

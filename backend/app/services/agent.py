@@ -4,9 +4,10 @@ Runs a Thought → Action → Observation loop using 5 investigation tools
 to produce a structured root-cause analysis for any test failure.
 """
 import json
+import importlib
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, cast
 
 from app.core.config import settings
 from app.db.mongo import Collections, get_mongo_db
@@ -113,8 +114,11 @@ async def run_triage_agent(
             logger.debug("FastClassifier skipped: %s", fc_exc)
 
     # ── Slow path: full ReAct agent ───────────────────────────────────────────
-    from langchain.agents import AgentExecutor, create_react_agent
     from langchain_core.prompts import PromptTemplate
+
+    langchain_agents = importlib.import_module("langchain.agents")
+    create_react_agent = cast(Any, getattr(langchain_agents, "create_react_agent"))
+    AgentExecutor = cast(Any, getattr(langchain_agents, "AgentExecutor"))
 
     llm = get_llm()
     tools = _get_tools()
