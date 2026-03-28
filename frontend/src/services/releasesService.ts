@@ -3,9 +3,9 @@ import type { LinkedRun, Release, ReleaseDetail, ReleasePhase } from '@/types/re
 import { deleteData, getData, postData, putData } from './http'
 
 export const releasesService = {
-  list: (projectId: string, status?: string) =>
+  list: (projectId: string | null, status?: string) =>
     getData<PaginatedResponse<Release>>('/api/v1/releases', {
-      params: { project_id: projectId, ...(status ? { status } : {}) },
+      params: { ...(projectId ? { project_id: projectId } : {}), ...(status ? { status } : {}) },
     }),
 
   get: (id: string) =>

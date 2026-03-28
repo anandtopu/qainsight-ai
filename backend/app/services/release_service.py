@@ -48,13 +48,14 @@ async def get_phase_or_404(db: AsyncSession, release_id: str, phase_id: str) -> 
     return phase
 
 
-async def list_releases(db: AsyncSession, project_id: str, status: Optional[str] = None) -> dict:
+async def list_releases(db: AsyncSession, project_id: Optional[str], status: Optional[str] = None) -> dict:
     stmt = (
         select(Release)
-        .where(Release.project_id == uuid.UUID(project_id))
         .options(selectinload(Release.phases))
         .order_by(Release.created_at.desc())
     )
+    if project_id:
+        stmt = stmt.where(Release.project_id == uuid.UUID(project_id))
     if status:
         stmt = stmt.where(Release.status == status)
     rows = (await db.execute(stmt)).scalars().all()

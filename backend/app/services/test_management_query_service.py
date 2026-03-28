@@ -12,13 +12,15 @@ from app.routers.test_management_shared import paginate_scalars
 
 async def list_audit_logs(
     db: AsyncSession,
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID],
     page: int,
     size: int,
     entity_type: Optional[str] = None,
     action: Optional[str] = None,
 ):
-    query = select(TestCaseAuditLog).where(TestCaseAuditLog.project_id == project_id)
+    query = select(TestCaseAuditLog)
+    if project_id:
+        query = query.where(TestCaseAuditLog.project_id == project_id)
     if entity_type:
         query = query.where(TestCaseAuditLog.entity_type == entity_type)
     if action:

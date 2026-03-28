@@ -36,7 +36,7 @@ async def get_test_case_or_404(db: AsyncSession, case_id: uuid.UUID) -> ManagedT
 
 async def list_managed_test_cases(
     db: AsyncSession,
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID],
     page: int,
     size: int,
     status: Optional[str] = None,
@@ -46,7 +46,9 @@ async def list_managed_test_cases(
     ai_generated: Optional[bool] = None,
     search: Optional[str] = None,
 ):
-    query = select(ManagedTestCase).where(ManagedTestCase.project_id == project_id)
+    query = select(ManagedTestCase)
+    if project_id:
+        query = query.where(ManagedTestCase.project_id == project_id)
     if status:
         query = query.where(ManagedTestCase.status == status)
     else:
@@ -250,12 +252,14 @@ async def recompute_plan_counts(db: AsyncSession, plan: TestPlan) -> None:
 
 async def list_test_plans(
     db: AsyncSession,
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID],
     page: int,
     size: int,
     status: Optional[str] = None,
 ):
-    query = select(TestPlan).where(TestPlan.project_id == project_id)
+    query = select(TestPlan)
+    if project_id:
+        query = query.where(TestPlan.project_id == project_id)
     if status:
         query = query.where(TestPlan.status == status)
     return await paginate_scalars(db, query.order_by(TestPlan.created_at.desc()), page, size)

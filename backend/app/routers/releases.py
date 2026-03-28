@@ -68,7 +68,7 @@ class LinkRunRequest(BaseModel):
 
 @router.get("")
 async def list_releases(
-    project_id: str = Query(...),
+    project_id: Optional[str] = None,
     status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):

@@ -351,9 +351,9 @@ function SmtpConfigCard() {
     setSaving(true)
     try {
       const passwordPayload =
-        password === ''
-          ? (passwordSet ? '' : null)
-          : password
+        password !== ''
+          ? password
+          : null
 
       const updated = await appSettingsService.updateSmtpConfig({
         enabled,

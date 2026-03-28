@@ -2,8 +2,10 @@ import type { RunTestCase, RunTestCaseListResponse, TestRun, TestRunListResponse
 import { getData, postData } from './http'
 
 export const runsService = {
-  list: (projectId: string, params?: Record<string, unknown>) =>
-    getData<TestRunListResponse>('/api/v1/runs', { params: { project_id: projectId, ...params } }),
+  list: (projectId: string | null, params?: Record<string, unknown>) =>
+    getData<TestRunListResponse>('/api/v1/runs', {
+      params: { ...(projectId ? { project_id: projectId } : {}), ...params },
+    }),
 
   get: (runId: string) =>
     getData<TestRun>(`/api/v1/runs/${runId}`),

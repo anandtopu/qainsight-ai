@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v1/metrics", tags=["Metrics"])
 
 @router.get("/summary")
 async def dashboard_summary(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
 ):
@@ -20,7 +20,7 @@ async def dashboard_summary(
 
 @router.get("/trends")
 async def trend_data(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
 ):

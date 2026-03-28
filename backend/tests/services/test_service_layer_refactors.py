@@ -84,6 +84,7 @@ def _fake_run(run_id: uuid.UUID, status: str = "passed"):
     return SimpleNamespace(
         __table__=SimpleNamespace(columns=columns),
         id=run_id,
+        project_id=uuid.uuid4(),
         status=status,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
@@ -206,6 +207,11 @@ async def test_list_project_runs_enriches_paginated_runs():
             runs_service,
             "fetch_release_map",
             AsyncMock(return_value={str(run_id): {"id": "rel-1", "name": "Release 1"}}),
+        ),
+        patch.object(
+            runs_service,
+            "fetch_project_name_map",
+            AsyncMock(return_value={}),
         ),
     ):
         items, total, pages = await runs_service.list_project_runs(db, "project-1", 1, 20, "FAILED", None)

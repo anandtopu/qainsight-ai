@@ -7,7 +7,7 @@ import Pagination from '@/components/ui/Pagination'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { searchService } from '@/services/searchService'
 import { fromNow } from '@/utils/formatters'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 
 interface SearchResult {
   test_case_id: string
@@ -39,7 +39,12 @@ export default function SearchPage() {
     if (!q.trim()) return
     setLoading(true)
     try {
-      const data = await searchService.search({ q, project_id: projectId ?? undefined, page: p, size: 25 })
+      const data = await searchService.search({
+        q,
+        project_id: (projectId && projectId !== ALL_PROJECTS_ID) ? projectId : undefined,
+        page: p,
+        size: 25,
+      })
       setResults(data)
       setPage(p)
     } finally {

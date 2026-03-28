@@ -20,14 +20,16 @@ def _row_dict(row) -> dict:
     return data
 
 
-async def flaky_tests(db: AsyncSession, project_id: str, days: int, limit: int) -> dict:
+async def flaky_tests(db: AsyncSession, project_id: str | None, days: int, limit: int) -> dict:
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
     query = text(
-        """
+        f"""
         SELECT
             tch.test_fingerprint,
             MAX(tc.test_name)   AS test_name,
             MAX(tc.suite_name)  AS suite_name,
             MAX(tc.class_name)  AS class_name,
+            MAX(p.name)         AS project_name,
             COUNT(*)            AS total_runs,
             COUNT(*) FILTER (WHERE tch.status IN ('FAILED', 'BROKEN')) AS fail_count,
             COUNT(*) FILTER (WHERE tch.status = 'PASSED')              AS pass_count,
@@ -38,8 +40,9 @@ async def flaky_tests(db: AsyncSession, project_id: str, days: int, limit: int) 
         FROM test_case_history tch
         JOIN test_cases tc ON tc.id = tch.test_case_id
         JOIN test_runs tr   ON tr.id = tch.test_run_id
-        WHERE tr.project_id = :project_id
-          AND tch.created_at >= :period_start
+        LEFT JOIN projects p ON p.id = tr.project_id
+        WHERE tch.created_at >= :period_start
+          {project_filter}
         GROUP BY tch.test_fingerprint
         HAVING COUNT(*) >= 3
            AND COUNT(*) FILTER (WHERE tch.status IN ('FAILED', 'BROKEN')) * 1.0 / COUNT(*) BETWEEN 0.05 AND 0.95
@@ -47,36 +50,41 @@ async def flaky_tests(db: AsyncSession, project_id: str, days: int, limit: int) 
         LIMIT :limit
         """
     )
-    result = await db.execute(
-        query,
-        {"project_id": str(project_id), "period_start": _period_start(days), "limit": limit},
-    )
+    params: dict = {"period_start": _period_start(days), "limit": limit}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     rows = result.fetchall()
     return {"items": [dict(row._mapping) for row in rows], "period_days": days, "total": len(rows)}
 
 
-async def failure_categories(db: AsyncSession, project_id: str, days: int) -> dict:
+async def failure_categories(db: AsyncSession, project_id: str | None, days: int) -> dict:
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
     query = text(
-        """
+        f"""
         SELECT
             COALESCE(tc.failure_category, 'UNKNOWN') AS category,
             COUNT(*) AS count
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND tc.status IN ('FAILED', 'BROKEN')
+        WHERE tc.status IN ('FAILED', 'BROKEN')
           AND tc.created_at >= :period_start
+          {project_filter}
         GROUP BY category
         ORDER BY count DESC
         """
     )
-    result = await db.execute(query, {"project_id": str(project_id), "period_start": _period_start(days)})
+    params: dict = {"period_start": _period_start(days)}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     return {"items": [dict(row._mapping) for row in result.fetchall()], "period_days": days}
 
 
-async def top_failing_tests(db: AsyncSession, project_id: str, days: int, limit: int) -> dict:
+async def top_failing_tests(db: AsyncSession, project_id: str | None, days: int, limit: int) -> dict:
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
     query = text(
-        """
+        f"""
         SELECT
             tc.test_fingerprint,
             MAX(tc.test_name)   AS test_name,
@@ -87,27 +95,29 @@ async def top_failing_tests(db: AsyncSession, project_id: str, days: int, limit:
             MAX(tc.created_at)  AS last_failed
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND tc.status IN ('FAILED', 'BROKEN')
+        WHERE tc.status IN ('FAILED', 'BROKEN')
           AND tc.created_at >= :period_start
+          {project_filter}
         GROUP BY tc.test_fingerprint
         ORDER BY fail_count DESC
         LIMIT :limit
         """
     )
-    result = await db.execute(
-        query,
-        {"project_id": str(project_id), "period_start": _period_start(days), "limit": limit},
-    )
+    params: dict = {"period_start": _period_start(days), "limit": limit}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     return {"items": [dict(row._mapping) for row in result.fetchall()], "period_days": days}
 
 
-async def coverage_stats(db: AsyncSession, project_id: str, days: int) -> dict:
+async def coverage_stats(db: AsyncSession, project_id: str | None, days: int) -> dict:
     period_start = _period_start(days)
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
     suite_query = text(
-        """
+        f"""
         SELECT
             COALESCE(tc.suite_name, 'Unknown Suite') AS suite_name,
+            MAX(p.name)                              AS project_name,
             COUNT(DISTINCT tc.test_fingerprint)      AS unique_tests,
             COUNT(*) FILTER (WHERE tc.status = 'PASSED') AS passed,
             COUNT(*) FILTER (WHERE tc.status IN ('FAILED', 'BROKEN')) AS failed,
@@ -117,15 +127,16 @@ async def coverage_stats(db: AsyncSession, project_id: str, days: int) -> dict:
             ) AS pass_rate
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND tc.created_at >= :period_start
+        LEFT JOIN projects p ON p.id = tr.project_id
+        WHERE tc.created_at >= :period_start
+          {project_filter}
         GROUP BY tc.suite_name
         ORDER BY unique_tests DESC
         LIMIT 50
         """
     )
     total_query = text(
-        """
+        f"""
         SELECT
             COUNT(DISTINCT tc.test_fingerprint)  AS unique_tests,
             COUNT(DISTINCT tc.suite_name)        AS suite_count,
@@ -134,12 +145,15 @@ async def coverage_stats(db: AsyncSession, project_id: str, days: int) -> dict:
             COUNT(DISTINCT DATE_TRUNC('day', tr.created_at)) AS days_with_runs
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND tc.created_at >= :period_start
+        WHERE tc.created_at >= :period_start
+          {project_filter}
         """
     )
-    suites = (await db.execute(suite_query, {"project_id": str(project_id), "period_start": period_start})).fetchall()
-    total = (await db.execute(total_query, {"project_id": str(project_id), "period_start": period_start})).one()
+    params: dict = {"period_start": period_start}
+    if project_id:
+        params["project_id"] = str(project_id)
+    suites = (await db.execute(suite_query, params)).fetchall()
+    total = (await db.execute(total_query, params)).one()
     return {
         "summary": dict(total._mapping),
         "suites": [dict(row._mapping) for row in suites],
@@ -147,14 +161,16 @@ async def coverage_stats(db: AsyncSession, project_id: str, days: int) -> dict:
     }
 
 
-async def suite_detail(db: AsyncSession, project_id: str, suite_name: str, days: int) -> dict:
-    params = {
-        "project_id": str(project_id),
+async def suite_detail(db: AsyncSession, project_id: str | None, suite_name: str, days: int) -> dict:
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
+    params: dict = {
         "suite_name": suite_name,
         "period_start": _period_start(days),
     }
+    if project_id:
+        params["project_id"] = str(project_id)
     summary_query = text(
-        """
+        f"""
         SELECT
             COUNT(DISTINCT tc.test_fingerprint)                              AS unique_tests,
             COUNT(*)                                                         AS total_executions,
@@ -169,13 +185,13 @@ async def suite_detail(db: AsyncSession, project_id: str, suite_name: str, days:
             MAX(tc.created_at)                                               AS last_run_at
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
+        WHERE COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
           AND tc.created_at >= :period_start
+          {project_filter}
         """
     )
     cases_query = text(
-        """
+        f"""
         SELECT
             tc.test_fingerprint,
             MAX(tc.test_name)                                             AS test_name,
@@ -199,16 +215,16 @@ async def suite_detail(db: AsyncSession, project_id: str, suite_name: str, days:
             ) AS is_flaky
         FROM test_cases tc
         JOIN test_runs tr ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
+        WHERE COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
           AND tc.created_at >= :period_start
+          {project_filter}
         GROUP BY tc.test_fingerprint
         ORDER BY failed DESC, total_executions DESC
         LIMIT 200
         """
     )
     runs_query = text(
-        """
+        f"""
         SELECT
             tr.id::text                                                   AS test_run_id,
             tr.build_number,
@@ -222,9 +238,9 @@ async def suite_detail(db: AsyncSession, project_id: str, suite_name: str, days:
             ) AS pass_rate
         FROM test_runs tr
         JOIN test_cases tc ON tc.test_run_id = tr.id
-        WHERE tr.project_id = :project_id
-          AND COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
+        WHERE COALESCE(tc.suite_name, 'Unknown Suite') = :suite_name
           AND tr.created_at >= :period_start
+          {project_filter}
         GROUP BY tr.id, tr.build_number, tr.created_at
         ORDER BY tr.created_at DESC
         LIMIT 15
@@ -244,11 +260,12 @@ async def suite_detail(db: AsyncSession, project_id: str, suite_name: str, days:
 
 async def list_defects(
     db: AsyncSession,
-    project_id: str,
+    project_id: str | None,
     resolution_status: str | None,
     page: int,
     size: int,
 ) -> dict:
+    project_filter = "AND d.project_id = :project_id" if project_id else ""
     status_filter = "AND d.resolution_status = :resolution_status" if resolution_status else ""
     query = text(
         f"""
@@ -266,13 +283,16 @@ async def list_defects(
             tc.suite_name
         FROM defects d
         JOIN test_cases tc ON tc.id = d.test_case_id
-        WHERE d.project_id = :project_id
+        WHERE 1=1
+        {project_filter}
         {status_filter}
         ORDER BY d.created_at DESC
         LIMIT :limit OFFSET :offset
         """
     )
-    params = {"project_id": str(project_id), "limit": size, "offset": (page - 1) * size}
+    params: dict = {"limit": size, "offset": (page - 1) * size}
+    if project_id:
+        params["project_id"] = str(project_id)
     if resolution_status:
         params["resolution_status"] = resolution_status.upper()
 
@@ -280,7 +300,8 @@ async def list_defects(
     count_query = text(
         f"""
         SELECT COUNT(*) FROM defects d
-        WHERE d.project_id = :project_id
+        WHERE 1=1
+        {project_filter}
         {status_filter}
         """
     )
@@ -289,9 +310,10 @@ async def list_defects(
     return {"items": [dict(row._mapping) for row in rows], "total": total, "page": page, "size": size, "pages": -(-total // size)}
 
 
-async def ai_analysis_summary(db: AsyncSession, project_id: str, days: int) -> dict:
+async def ai_analysis_summary(db: AsyncSession, project_id: str | None, days: int) -> dict:
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
     query = text(
-        """
+        f"""
         SELECT
             COUNT(*)                                           AS total_analysed,
             COUNT(*) FILTER (WHERE ai.confidence_score >= 80)  AS high_confidence,
@@ -303,9 +325,12 @@ async def ai_analysis_summary(db: AsyncSession, project_id: str, days: int) -> d
         FROM ai_analysis ai
         JOIN test_cases tc ON tc.id = ai.test_case_id
         JOIN test_runs tr  ON tr.id = tc.test_run_id
-        WHERE tr.project_id = :project_id
-          AND ai.created_at >= :period_start
+        WHERE ai.created_at >= :period_start
+          {project_filter}
         """
     )
-    result = await db.execute(query, {"project_id": str(project_id), "period_start": _period_start(days)})
+    params: dict = {"period_start": _period_start(days)}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     return dict(result.one()._mapping)

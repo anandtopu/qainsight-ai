@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +38,7 @@ router = APIRouter()
 
 @router.get("/plans", response_model=TestPlanListResponse)
 async def list_plans(
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID] = None,
     status: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),

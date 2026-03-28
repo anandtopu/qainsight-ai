@@ -179,8 +179,20 @@ export default function RunDetailPage() {
             <span>Failed to load test cases — {(error as Error)?.message ?? 'server error'}</span>
           </div>
         ) : !data?.items?.length ? (
-          <div className="flex items-center justify-center py-16 text-slate-500 text-sm">
-            No test cases found for this run.
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-sm gap-3">
+            {run?.trigger_source === 'live_stream' ? (
+              <>
+                <p>Live test results are being processed. This may take a few moments.</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="text-blue-400 hover:text-blue-300 text-xs underline"
+                >
+                  Refresh page
+                </button>
+              </>
+            ) : (
+              <p>No test cases found for this run.</p>
+            )}
           </div>
         ) : (
           <>

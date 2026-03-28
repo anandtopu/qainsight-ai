@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Bell, CheckCircle, XCircle } from 'lucide-react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import { projectsService } from '@/services/projectsService'
 import { useAuthStore } from '@/store/authStore'
 import { UserCircle, LogOut } from 'lucide-react'
@@ -11,7 +11,7 @@ import type { Project } from '@/types/projects'
 
 export default function TopBar() {
   const navigate = useNavigate()
-  const { activeProject, setActiveProject } = useProjectStore()
+  const { activeProject, activeProjectId, setActiveProject, setAllProjects } = useProjectStore()
   const [projects, setProjects] = useState<Project[]>([])
   const [searchVal, setSearchVal] = useState('')
   const [bellOpen, setBellOpen] = useState(false)
@@ -67,13 +67,18 @@ export default function TopBar() {
       {/* Project selector */}
       <select
         className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        value={activeProject?.id ?? ''}
+        value={activeProjectId === ALL_PROJECTS_ID ? ALL_PROJECTS_ID : (activeProject?.id ?? '')}
         onChange={e => {
-          const p = projects.find(x => x.id === e.target.value) ?? null
-          setActiveProject(p)
+          if (e.target.value === ALL_PROJECTS_ID) {
+            setAllProjects()
+          } else {
+            const p = projects.find(x => x.id === e.target.value) ?? null
+            setActiveProject(p)
+          }
         }}
       >
         <option value="">— Select project —</option>
+        <option value={ALL_PROJECTS_ID}>All Projects</option>
         {projects.map(p => (
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}

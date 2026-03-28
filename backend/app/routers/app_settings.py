@@ -63,7 +63,7 @@ async def update_smtp_config(
     db: AsyncSession = Depends(get_db),
 ) -> SmtpConfigRead:
     """Persist SMTP configuration to the database."""
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy import select
 
     # Load existing config so we can preserve the password when not supplied
     existing = await _load_smtp_row(db)
@@ -79,9 +79,13 @@ async def update_smtp_config(
         "tls": payload.implicit_tls,
     }
 
-    stmt = pg_insert(AppSetting).values(key=_SMTP_KEY, value=new_value)
-    stmt = stmt.on_conflict_do_update(index_elements=["key"], set_={"value": new_value})
-    await db.execute(stmt)
+    # ORM-based upsert: update if exists, insert if not
+    result = await db.execute(select(AppSetting).where(AppSetting.key == _SMTP_KEY))
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = new_value
+    else:
+        db.add(AppSetting(key=_SMTP_KEY, value=new_value))
     await db.commit()
 
     logger.info("SMTP configuration updated")

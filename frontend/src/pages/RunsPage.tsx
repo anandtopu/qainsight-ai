@@ -8,10 +8,12 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import EmptyState from '@/components/ui/EmptyState'
 import { useRuns } from '@/hooks/useRuns'
 import { formatDateTime, fromNow, formatDuration, formatPassRate } from '@/utils/formatters'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 
 interface TestRun {
   id: string
+  project_id?: string
+  project_name?: string
   build_number: number
   jenkins_job?: string
   branch?: string
@@ -30,12 +32,14 @@ interface TestRun {
 export default function RunsPage() {
   const navigate = useNavigate()
   const project = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
 
   const { data, isLoading } = useRuns({ page, size: 20, ...(statusFilter && { status: statusFilter }) })
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<GitBranch className="h-10 w-10" />}
@@ -45,11 +49,13 @@ export default function RunsPage() {
     )
   }
 
+  const projectLabel = project?.name ?? 'All Projects'
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Test Runs"
-        subtitle={`Jenkins builds for ${project.name}`}
+        subtitle={`Jenkins builds for ${projectLabel}`}
         actions={
           <select
             className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -78,7 +84,10 @@ export default function RunsPage() {
             <table className="w-full">
               <thead className="border-b border-slate-800">
                 <tr>
-                  {['Build', 'Job', 'Branch', 'Release', 'Status', 'Tests', 'Pass Rate', 'Duration', 'Started'].map(h => (
+                  {[
+                    ...(isAllProjects ? ['Project'] : []),
+                    'Build', 'Job', 'Branch', 'Release', 'Status', 'Tests', 'Pass Rate', 'Duration', 'Started',
+                  ].map(h => (
                     <th key={h} className="th">{h}</th>
                   ))}
                 </tr>
@@ -90,6 +99,15 @@ export default function RunsPage() {
                     className="table-row"
                     onClick={() => navigate(`/runs/${run.id}`)}
                   >
+                    {isAllProjects && (
+                      <td
+                        className="td text-blue-400 font-medium truncate max-w-[140px] cursor-pointer hover:text-blue-300"
+                        onClick={e => { e.stopPropagation(); navigate('/projects') }}
+                        title="View projects"
+                      >
+                        {run.project_name ?? run.project_id?.slice(0, 8) ?? '—'}
+                      </td>
+                    )}
                     <td className="td font-mono text-blue-400 font-medium">#{run.build_number}</td>
                     <td className="td text-slate-400 truncate max-w-[160px]">{run.jenkins_job ?? '—'}</td>
                     <td className="td text-slate-400">{run.branch ?? '—'}</td>

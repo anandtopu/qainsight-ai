@@ -2,6 +2,8 @@ import type { PaginatedResponse } from './common'
 
 export interface TestRun {
   id: string
+  project_id?: string
+  project_name?: string
   build_number: number | string
   jenkins_job?: string
   branch?: string
@@ -17,6 +19,7 @@ export interface TestRun {
   ocp_pod_name?: string
   release_name?: string
   release_id?: string
+  trigger_source?: string
 }
 
 export type TestRunListResponse = PaginatedResponse<TestRun>

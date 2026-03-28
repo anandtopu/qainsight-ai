@@ -162,6 +162,18 @@ async def logout(current_user: User = Depends(get_current_active_user)):
     return None
 
 
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Return all active users (for assignee dropdowns)."""
+    result = await db.execute(
+        select(User).where(User.is_active == True).order_by(User.full_name)  # noqa: E712
+    )
+    return result.scalars().all()
+
+
 @router.post("/change-password", status_code=204)
 async def change_password(
     payload: ChangePasswordRequest,

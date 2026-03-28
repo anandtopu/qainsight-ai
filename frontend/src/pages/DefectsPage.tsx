@@ -5,7 +5,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useDefects } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 
 const RESOLUTION_FILTERS = [
   { label: 'All',        value: undefined       },
@@ -47,9 +47,11 @@ export default function DefectsPage() {
   const [page, setPage] = useState(1)
   const [resolutionFilter, setResolutionFilter] = useState<string | undefined>(undefined)
   const project = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
   const { data, isLoading } = useDefects(page, resolutionFilter)
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<Gauge className="h-10 w-10" />}
@@ -58,6 +60,8 @@ export default function DefectsPage() {
       />
     )
   }
+
+  const projectLabel = project?.name ?? 'All Projects'
 
   const items: Defect[] = data?.items ?? []
   const total: number   = data?.total ?? 0
@@ -72,7 +76,7 @@ export default function DefectsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Defects"
-        subtitle={`Defect tracking and Jira integration for ${project.name}`}
+        subtitle={`Defect tracking and Jira integration for ${projectLabel}`}
         actions={
           <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
             {RESOLUTION_FILTERS.map(({ label, value }) => (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +18,7 @@ router = APIRouter()
 
 @router.get("/audit", response_model=AuditLogListResponse)
 async def get_audit_log(
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID] = None,
     entity_type: str | None = None,
     action: str | None = None,
     page: int = Query(1, ge=1),

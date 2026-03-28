@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/runs", tags=["Test Runs"])
 
 @router.get("")
 async def list_runs(
-    project_id: str,
+    project_id: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     status: str | None = None,

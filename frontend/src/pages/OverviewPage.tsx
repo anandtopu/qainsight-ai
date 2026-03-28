@@ -5,7 +5,7 @@ import TrendChart from '@/components/charts/TrendChart'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useDashboardSummary, useTrendData } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import { formatDuration } from '@/utils/formatters'
 import { clsx } from 'clsx'
 
@@ -20,11 +20,13 @@ const READINESS_STYLES = {
 export default function OverviewPage() {
   const [days, setDays] = useState(7)
   const project = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
 
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary(days)
   const { data: trends,  isLoading: trendsLoading  } = useTrendData(days)
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <TrendingUp className="h-12 w-12 text-slate-600 mb-3" />
@@ -34,6 +36,7 @@ export default function OverviewPage() {
     )
   }
 
+  const projectLabel = project?.name ?? 'All Projects'
   const readiness = summary?.release_readiness
   const trendData = (trends?.data ?? []).map((point) => ({
     ...point,
@@ -44,7 +47,7 @@ export default function OverviewPage() {
     <div className="space-y-6">
       <PageHeader
         title="Executive Dashboard"
-        subtitle={project.name}
+        subtitle={projectLabel}
         actions={
           <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
             {TIME_OPTIONS.map(d => (

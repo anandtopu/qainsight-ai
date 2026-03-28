@@ -35,7 +35,7 @@ import {
   Package,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import { useLiveExecution, LiveEvent } from '@/hooks/useLiveExecution'
 import type { LiveSessionState } from '@/types/live-stream'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -209,7 +209,10 @@ function EventRow({ event }: { event: LiveEvent }) {
 
 export default function LiveExecutionPage() {
   const selectedProject = useProjectStore(s => s.activeProject)
-  const projectId = selectedProject?.id?.toString()
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
+  // In All Projects mode, pass undefined so polling returns all sessions
+  const projectId = isAllProjects ? undefined : selectedProject?.id?.toString()
 
   const {
     sessions,
@@ -359,6 +362,7 @@ export default function LiveExecutionPage() {
                 <tr className="border-b border-slate-700 text-slate-500 uppercase tracking-wider">
                   <th className="px-4 py-2.5 text-left font-medium">Run</th>
                   <th className="px-4 py-2.5 text-left font-medium">Status</th>
+                  {isAllProjects && <th className="px-4 py-2.5 text-left font-medium">Project</th>}
                   <th className="px-4 py-2.5 text-left font-medium">Build</th>
                   <th
                     className="px-4 py-2.5 text-right font-medium cursor-pointer hover:text-slate-300 select-none"
@@ -392,7 +396,7 @@ export default function LiveExecutionPage() {
               <tbody>
                 {visibleSessions.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={isAllProjects ? 10 : 9} className="px-4 py-10 text-center text-slate-500">
                       {sessions.length === 0
                         ? 'No active execution sessions. Start a test run with the client SDK.'
                         : 'No sessions match the current filter.'}
@@ -425,6 +429,11 @@ export default function LiveExecutionPage() {
                         {session.status}
                       </span>
                     </td>
+                    {isAllProjects && (
+                      <td className="px-4 py-3 text-slate-400 font-mono text-[11px]">
+                        {session.project_id ? session.project_id.slice(0, 8) : '—'}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-slate-300 font-mono">
                       {session.build_number || '—'}
                     </td>
