@@ -79,6 +79,22 @@ patches:
         value: 2
     target:
       kind: HorizontalPodAutoscaler
+      name: qainsight-frontend-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-critical-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
       name: qainsight-worker-ingestion-hpa
 
   - patch: |-
@@ -88,6 +104,22 @@ patches:
     target:
       kind: HorizontalPodAutoscaler
       name: qainsight-worker-ai-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-default-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-mcp-hpa
 
   # ── Environment configuration ─────────────────────────────────────────────
   - patch: |-
