@@ -420,7 +420,7 @@ export default function TrendsPage() {
     )
   }
 
-  const trendData = trends ?? []
+  const trendData = trends?.data ?? []
 
   const totalPassed  = trendData.reduce((s: number, d: TrendPoint) => s + d.passed,  0)
   const totalFailed  = trendData.reduce((s: number, d: TrendPoint) => s + d.failed,  0)

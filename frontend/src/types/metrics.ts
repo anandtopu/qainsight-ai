@@ -7,3 +7,8 @@ export interface TrendPoint {
   total?: number
   pass_rate: number
 }
+
+export interface TrendResponse {
+  data: TrendPoint[]
+  period_days: number
+}

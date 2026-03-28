@@ -35,7 +35,7 @@ export default function OverviewPage() {
   }
 
   const readiness = summary?.release_readiness
-  const trendData = (trends ?? []).map((point) => ({
+  const trendData = (trends?.data ?? []).map((point) => ({
     ...point,
     total: point.total ?? point.passed + point.failed + point.skipped + (point.broken ?? 0),
   }))
