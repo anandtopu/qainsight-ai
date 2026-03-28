@@ -192,7 +192,7 @@ spec:
       # premature scale-down would terminate in-flight tasks.
       stabilizationWindowSeconds: 600
       policies:
-        - type: Replicas
+        - type: Pods
           value: 1
           periodSeconds: 300
 ---
