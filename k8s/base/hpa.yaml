@@ -150,7 +150,7 @@ spec:
     scaleDown:
       stabilizationWindowSeconds: 180
       policies:
-        - type: Replicas
+        - type: Pods
           value: 1
           periodSeconds: 120
 ---
