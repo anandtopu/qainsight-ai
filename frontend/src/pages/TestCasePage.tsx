@@ -57,9 +57,9 @@ export default function TestCasePage() {
       </div>
 
       {/* Tags */}
-      {tc.tags?.length > 0 && (
+      {(tc.tags?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-2">
-          {tc.tags.map((tag: string) => (
+          {tc.tags?.map((tag: string) => (
             <span key={tag} className="badge bg-slate-800 text-slate-400 border border-slate-700">{tag}</span>
           ))}
         </div>

@@ -37,7 +37,7 @@ import {
 import { clsx } from 'clsx'
 import { useProjectStore } from '@/store/projectStore'
 import { useLiveExecution, LiveEvent } from '@/hooks/useLiveExecution'
-import { LiveSessionState } from '@/services/liveStreamService'
+import type { LiveSessionState } from '@/types/live-stream'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 // ── Helpers ────────────────────────────────────────────────────────────────

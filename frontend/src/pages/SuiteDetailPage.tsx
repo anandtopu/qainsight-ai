@@ -13,6 +13,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useSuiteDetail } from '@/hooks/useMetrics'
 import { useProjectStore } from '@/store/projectStore'
+import type { SuiteDetailSummary } from '@/types/analytics'
 
 const PERIODS = [
   { label: '7d',  days: 7 },
@@ -106,7 +107,7 @@ export default function SuiteDetailPage() {
     )
   }
 
-  const summary    = data?.summary     ?? {}
+  const summary: Partial<SuiteDetailSummary> = data?.summary ?? {}
   const testCases: TestCaseRow[] = data?.test_cases  ?? []
   const recentRuns: RunRow[]     = data?.recent_runs ?? []
 

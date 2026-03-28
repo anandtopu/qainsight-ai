@@ -5,7 +5,8 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import toast from 'react-hot-toast'
-import { aiService, type AnalysisResult } from '@/services/aiService'
+import { aiService } from '@/services/aiService'
+import type { AnalysisResult } from '@/types/ai'
 import { confidenceColor } from '@/utils/formatters'
 
 interface Props {

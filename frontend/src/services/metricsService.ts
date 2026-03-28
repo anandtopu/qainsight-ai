@@ -1,18 +1,12 @@
-import { api } from './api'
-
-export interface TrendPoint {
-  date: string
-  passed: number
-  failed: number
-  skipped: number
-  broken: number
-  pass_rate: number
-}
+import type { DashboardSummary } from '@/types/analytics'
+import type { TrendPoint } from '@/types/metrics'
+import { getData } from './http'
 
 export const metricsService = {
   getSummary: (projectId: string, days = 7) =>
-    api.get('/api/v1/metrics/summary', { params: { project_id: projectId, days } }).then(r => r.data),
+    getData<DashboardSummary>('/api/v1/metrics/summary', { params: { project_id: projectId, days } }),
 
   getTrends: (projectId: string, days = 7) =>
-    api.get('/api/v1/metrics/trends', { params: { project_id: projectId, days } }).then(r => r.data),
+    getData<TrendPoint[]>('/api/v1/metrics/trends', { params: { project_id: projectId, days } }),
 }
+export type { TrendPoint }

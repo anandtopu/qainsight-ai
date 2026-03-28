@@ -10,7 +10,8 @@ import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import EmptyState from '@/components/ui/EmptyState'
 import { useFailureClusters, useDeepFindings } from '@/hooks/useDeepInvestigation'
-import { deepInvestigationService, FailureCluster, DeepFinding } from '@/services/deepInvestigationService'
+import { deepInvestigationService } from '@/services/deepInvestigationService'
+import type { DeepFinding, FailureCluster } from '@/types/deep-investigation'
 import { useRuns } from '@/hooks/useRuns'
 
 const CATEGORY_COLOUR: Record<string, string> = {

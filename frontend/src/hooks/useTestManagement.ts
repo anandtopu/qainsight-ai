@@ -1,13 +1,13 @@
 import useSWR from 'swr'
 import { testManagementService } from '@/services/testManagementService'
-import { useProjectStore } from '@/store/projectStore'
+import { useActiveProjectId, useProjectScopedSWR } from './useProjectScopedSWR'
 
 export function useTestCases(params?: Record<string, unknown>) {
-  const projectId = useProjectStore(s => s.activeProjectId)
-  return useSWR(
-    projectId ? ['tm-cases', projectId, params] : null,
-    () => testManagementService.listCases(projectId as string, params),
-    { refreshInterval: 60_000 }
+  return useProjectScopedSWR(
+    'tm-cases',
+    (projectId) => testManagementService.listCases(projectId, params),
+    { refreshInterval: 60_000 },
+    [params],
   )
 }
 
@@ -44,11 +44,11 @@ export function useTestCaseComments(id?: string) {
 }
 
 export function useTestPlans(params?: Record<string, unknown>) {
-  const projectId = useProjectStore(s => s.activeProjectId)
-  return useSWR(
-    projectId ? ['tm-plans', projectId, params] : null,
-    () => testManagementService.listPlans(projectId as string, params),
-    { refreshInterval: 60_000 }
+  return useProjectScopedSWR(
+    'tm-plans',
+    (projectId) => testManagementService.listPlans(projectId, params),
+    { refreshInterval: 60_000 },
+    [params],
   )
 }
 
@@ -69,10 +69,9 @@ export function usePlanItems(planId?: string) {
 }
 
 export function useStrategies() {
-  const projectId = useProjectStore(s => s.activeProjectId)
-  return useSWR(
-    projectId ? ['tm-strategies', projectId] : null,
-    () => testManagementService.listStrategies(projectId as string),
+  return useProjectScopedSWR(
+    'tm-strategies',
+    (projectId) => testManagementService.listStrategies(projectId),
     { refreshInterval: 120_000 }
   )
 }
@@ -86,7 +85,7 @@ export function useStrategy(id?: string) {
 }
 
 export function useAuditLog(params?: { entity_type?: string; action?: string; page?: number; size?: number }) {
-  const projectId = useProjectStore(s => s.activeProjectId)
+  const projectId = useActiveProjectId()
   return useSWR(
     projectId ? ['tm-audit', projectId, params] : null,
     () => testManagementService.getAuditLog(projectId as string, params),

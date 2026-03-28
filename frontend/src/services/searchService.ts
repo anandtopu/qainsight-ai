@@ -1,4 +1,5 @@
-import { api } from './api'
+import type { SearchResponse } from '@/types/search'
+import { getData } from './http'
 
 export const searchService = {
   search: (params: {
@@ -8,5 +9,5 @@ export const searchService = {
     days?: number
     page?: number
     size?: number
-  }) => api.get('/api/v1/search', { params }).then(r => r.data),
+  }) => getData<SearchResponse>('/api/v1/search', { params }),
 }

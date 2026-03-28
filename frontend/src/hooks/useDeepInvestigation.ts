@@ -1,5 +1,6 @@
 import useSWR from 'swr'
-import { deepInvestigationService, FailureCluster, DeepFinding, ReleaseDecision } from '@/services/deepInvestigationService'
+import { deepInvestigationService } from '@/services/deepInvestigationService'
+import type { DeepFinding, FailureCluster, ReleaseDecision } from '@/types/deep-investigation'
 
 export function useFailureClusters(runId: string | null) {
   return useSWR<FailureCluster[]>(

@@ -1,9 +1,10 @@
 import useSWR from 'swr'
-import agentService, { AgentPipelineRun, AgentStageResult, ActiveLiveRun, RunSummary } from '@/services/agentService'
-import { useProjectStore } from '@/store/projectStore'
+import agentService from '@/services/agentService'
+import type { ActiveLiveRun, AgentPipelineRun, AgentStageResult, RunSummary } from '@/types/agent'
+import { useActiveProjectId } from './useProjectScopedSWR'
 
 export function usePipelines(runId?: string) {
-  const projectId = useProjectStore(s => s.activeProjectId)
+  const projectId = useActiveProjectId()
   const key = runId
     ? `/pipelines?run=${runId}`
     : projectId
@@ -11,7 +12,7 @@ export function usePipelines(runId?: string) {
       : '/pipelines'
   return useSWR<AgentPipelineRun[]>(
     key,
-    () => agentService.listPipelines(runId, projectId ?? undefined).then((r) => r.data),
+    () => agentService.listPipelines(runId, projectId ?? undefined),
     { refreshInterval: 5000, revalidateOnFocus: false },
   )
 }
@@ -19,7 +20,7 @@ export function usePipelines(runId?: string) {
 export function usePipelineStages(pipelineId: string | null) {
   return useSWR<AgentStageResult[]>(
     pipelineId ? `/pipelines/${pipelineId}/stages` : null,
-    () => agentService.getStages(pipelineId ?? '').then((r) => r.data),
+    () => agentService.getStages(pipelineId ?? ''),
     { refreshInterval: 3000, revalidateOnFocus: false },
   )
 }
@@ -27,7 +28,7 @@ export function usePipelineStages(pipelineId: string | null) {
 export function useRunSummary(runId: string | null) {
   return useSWR<RunSummary>(
     runId ? `/run-summary/${runId}` : null,
-    () => agentService.getRunSummary(runId ?? '').then((r) => r.data),
+    () => agentService.getRunSummary(runId ?? ''),
     { revalidateOnFocus: false },
   )
 }
@@ -35,7 +36,7 @@ export function useRunSummary(runId: string | null) {
 export function useActiveLiveRuns() {
   return useSWR<ActiveLiveRun[]>(
     '/active-live-runs',
-    () => agentService.getActiveLiveRuns().then((r) => r.data.active_runs),
+    () => agentService.getActiveLiveRuns().then((response) => response.active_runs),
     { refreshInterval: 2000, revalidateOnFocus: false },
   )
 }

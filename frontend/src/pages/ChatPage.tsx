@@ -10,8 +10,8 @@ import toast from 'react-hot-toast'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useChat, useChatSessions, useRunSummaries } from '@/hooks/useChat'
 import chatService from '@/services/chatService'
-import type { ChatSession, RunSummary } from '@/services/chatService'
 import { useProjectStore } from '@/store/projectStore'
+import type { ChatSession, RunSummary } from '@/types/chat'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -232,12 +232,12 @@ export default function ChatPage() {
 
   const handleNewSession = async () => {
     try {
-      const res = await chatService.createSession({
+      const session = await chatService.createSession({
         project_id: activeProject?.id,
         title: 'New conversation',
       })
       await reloadSessions()
-      setActiveSessionId(res.data.id)
+      setActiveSessionId(session.id)
     } catch {
       toast.error('Failed to create session')
     }
@@ -263,8 +263,8 @@ export default function ChatPage() {
     let sid = activeSessionId
     if (!sid) {
       try {
-        const res = await chatService.createSession({ project_id: activeProject?.id })
-        sid = res.data.id
+        const session = await chatService.createSession({ project_id: activeProject?.id })
+        sid = session.id
         setActiveSessionId(sid)
         await reloadSessions()
       } catch {

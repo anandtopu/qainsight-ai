@@ -1,19 +1,9 @@
-import { api } from './api'
-
-export interface Project {
-  id: string
-  name: string
-  slug: string
-  description?: string
-  jira_project_key?: string
-  ocp_namespace?: string
-  is_active: boolean
-  created_at: string
-}
+import type { Project } from '@/types/projects'
+import { deleteData, getData, postData } from './http'
 
 export const projectsService = {
-  list: (): Promise<Project[]> => api.get('/api/v1/projects').then(r => r.data),
-  get:  (id: string): Promise<Project> => api.get(`/api/v1/projects/${id}`).then(r => r.data),
-  create: (data: Partial<Project>) => api.post('/api/v1/projects', data).then(r => r.data),
-  delete: (id: string) => api.delete(`/api/v1/projects/${id}`),
+  list: (): Promise<Project[]> => getData('/api/v1/projects'),
+  get: (id: string): Promise<Project> => getData(`/api/v1/projects/${id}`),
+  create: (data: Partial<Project>) => postData<Project, Partial<Project>>('/api/v1/projects', data),
+  delete: (id: string) => deleteData(`/api/v1/projects/${id}`),
 }

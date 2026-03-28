@@ -11,8 +11,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
-import liveStreamService, { LiveSessionState } from '@/services/liveStreamService'
+import liveStreamService from '@/services/liveStreamService'
 import { useAuthStore } from '@/store/authStore'
+import type { LiveSessionState } from '@/types/live-stream'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

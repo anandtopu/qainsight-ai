@@ -21,10 +21,18 @@ import {
 } from '@/hooks/useTestManagement'
 import {
   testManagementService,
-  type ManagedTestCase, type TestPlan, type TestStrategy,
-  type TestCaseVersion, type TestCaseReview, type TestCaseComment,
-  type TestPlanItem, type AIReviewResult, type TestStep,
 } from '@/services/testManagementService'
+import type {
+  AIReviewResult,
+  ManagedTestCase,
+  TestCaseComment,
+  TestCaseReview,
+  TestCaseVersion,
+  TestPlan,
+  TestPlanItem,
+  TestStep,
+  TestStrategy,
+} from '@/types/test-management'
 
 // ─── Constants / helpers ─────────────────────────────────────────────────────
 
