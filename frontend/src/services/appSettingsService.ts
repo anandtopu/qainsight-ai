@@ -1,4 +1,5 @@
-import api from './api'
+import type { AxiosResponse } from 'axios'
+import { api } from './api'
 
 export interface SmtpConfigRead {
   enabled: boolean
@@ -27,14 +28,14 @@ export interface SmtpTestResult {
 
 export const appSettingsService = {
   getSmtpConfig(): Promise<SmtpConfigRead> {
-    return api.get<SmtpConfigRead>('/api/v1/settings/smtp').then(r => r.data)
+    return api.get<SmtpConfigRead>('/api/v1/settings/smtp').then((r: AxiosResponse<SmtpConfigRead>) => r.data)
   },
 
   updateSmtpConfig(payload: SmtpConfigUpdate): Promise<SmtpConfigRead> {
-    return api.put<SmtpConfigRead>('/api/v1/settings/smtp', payload).then(r => r.data)
+    return api.put<SmtpConfigRead>('/api/v1/settings/smtp', payload).then((r: AxiosResponse<SmtpConfigRead>) => r.data)
   },
 
   testSmtpConfig(): Promise<SmtpTestResult> {
-    return api.post<SmtpTestResult>('/api/v1/settings/smtp/test').then(r => r.data)
+    return api.post<SmtpTestResult>('/api/v1/settings/smtp/test').then((r: AxiosResponse<SmtpTestResult>) => r.data)
   },
 }
