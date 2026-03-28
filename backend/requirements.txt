@@ -5,7 +5,7 @@
 # ── Web Framework ────────────────────────────────────────────
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
-python-multipart==0.0.12
+python-multipart==0.0.22
 httpx==0.28.1
 
 # ── Database ─────────────────────────────────────────────────
@@ -26,22 +26,22 @@ pydantic-settings==2.6.1
 email-validator==2.2.0
 
 # ── Authentication & Security ────────────────────────────────
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.1
 slowapi==0.1.9
 
 # ── Notifications ─────────────────────────────────────────────
 aiosmtplib==3.0.2
-jinja2==3.1.4
 
 # ── LangChain & AI ───────────────────────────────────────────
-langchain==0.3.9
-langchain-core==0.3.21
-langchain-community==0.3.9
+langchain==0.3.27
+langchain-core==0.3.81
 langchain-ollama==0.2.1
 langchain-openai==0.2.12
 langchain-google-genai==2.0.7
+# Residual risk note: GitHub currently flags langgraph checkpoint loading.
+# Repo evidence only uses StateGraph construction, not checkpoint loading APIs.
 langgraph==0.2.56
 
 # ── Vector Store ─────────────────────────────────────────────
@@ -59,7 +59,7 @@ defusedxml==0.7.1
 
 # ── HTTP Client ──────────────────────────────────────────────
 httpx==0.28.1
-aiohttp==3.11.10
+aiohttp==3.13.3
 
 # ── Observability: OpenTelemetry ─────────────────────────────
 # Core SDK + OTLP HTTP exporter (ships spans to Jaeger / any OTel Collector)
@@ -81,7 +81,6 @@ prometheus-fastapi-instrumentator==7.0.0
 # ── Utilities ────────────────────────────────────────────────
 python-dateutil==2.9.0.post0
 pytz==2024.2
-orjson==3.10.12
 structlog==24.4.0
 tenacity==9.0.0
 click==8.1.8
