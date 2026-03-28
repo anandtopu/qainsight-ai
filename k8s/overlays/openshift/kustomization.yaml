@@ -8,16 +8,85 @@ resources:
 namespace: qainsight-ai
 
 patches:
-  # OpenShift uses Routes; remove base Ingress resource.
+  # ── Remove standard Ingress — OpenShift uses Routes instead ──────────────
   - path: remove-ingress.yaml
 
-  # Allow OpenShift restricted SCC to assign a random non-root UID.
+  # ── OpenShift SCC: remove hardcoded runAsUser from every Deployment ───────
+  # The "restricted" SCC assigns a random UID from the project's namespace range.
+  # Keeping runAsUser: 1000 causes "SCC violation" admission failures on clusters
+  # that do not grant the "anyuid" SCC to the service account.
   - patch: |-
       - op: remove
         path: /spec/template/spec/containers/0/securityContext/runAsUser
     target:
       kind: Deployment
       name: qainsight-backend
+
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-worker-critical
+
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-worker-ingestion
+
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-worker-ai
+
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-worker-default
+
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/runAsUser
+    target:
+      kind: Deployment
+      name: qainsight-beat
+
+  # ── Add OpenShift-required annotation to force restricted SCC ─────────────
+  # This prevents the pod from accidentally getting a more permissive SCC via
+  # namespace defaults.  Remove this annotation if your SA has anyuid granted.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: not-used
+      spec:
+        template:
+          metadata:
+            annotations:
+              openshift.io/scc: restricted-v2
+    target:
+      kind: Deployment
+
+  # ── Environment ───────────────────────────────────────────────────────────
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: qainsight-config
+      data:
+        APP_ENV: "production"
+        LOG_LEVEL: "INFO"
+        AI_OFFLINE_MODE: "true"
+        CORS_ORIGINS: "https://qainsight.apps.example.com"
+    target:
+      kind: ConfigMap
+      name: qainsight-config
 
 images:
   - name: qainsight/backend
@@ -26,5 +95,3 @@ images:
     newTag: "0.0.1"
   - name: qainsight/mcp
     newTag: "0.0.1"
-
-

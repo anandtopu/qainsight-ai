@@ -5,6 +5,7 @@ metadata:
   namespace: qainsight-ai
   labels:
     app: qainsight-backend
+    app.kubernetes.io/component: api
 spec:
   replicas: 2
   selector:
@@ -13,12 +14,13 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0
+      maxUnavailable: 0      # zero-downtime: always keep 2 healthy before removing old
       maxSurge: 1
   template:
     metadata:
       labels:
         app: qainsight-backend
+        app.kubernetes.io/component: api
     spec:
       serviceAccountName: qainsight-sa
       containers:
@@ -72,29 +74,26 @@ spec:
             runAsUser: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: qainsight-backend-hpa
-  namespace: qainsight-ai
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: qainsight-backend
-  minReplicas: 2
-  maxReplicas: 8
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
-    - type: Resource
-      resource:
-        name: memory
-        target:
-          type: Utilization
-          averageUtilization: 80
+      # Spread replicas across nodes; fall back to best-effort if topology unavailable
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: qainsight-backend
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: qainsight-backend
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qainsight-backend
+                topologyKey: kubernetes.io/hostname

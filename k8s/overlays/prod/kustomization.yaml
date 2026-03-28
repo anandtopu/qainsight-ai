@@ -3,12 +3,12 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - worker-hpa.yaml
+  # worker-hpa.yaml is removed — all HPAs now live in k8s/base/hpa.yaml
 
 namespace: qainsight-ai
 
 patches:
-  # Override ConfigMap values for production environment
+  # ── Environment configuration ─────────────────────────────────────────────
   - patch: |-
       apiVersion: v1
       kind: ConfigMap
@@ -23,13 +23,38 @@ patches:
       kind: ConfigMap
       name: qainsight-config
 
+  # ── Worker replica floors (HPAs handle the ceiling) ──────────────────────
   - patch: |-
       - op: replace
         path: /spec/replicas
-        value: 3
+        value: 2
     target:
       kind: Deployment
-      name: qainsight-worker
+      name: qainsight-worker-critical
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+    target:
+      kind: Deployment
+      name: qainsight-worker-ingestion
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+    target:
+      kind: Deployment
+      name: qainsight-worker-ai
+
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: qainsight-worker-default
 
   - patch: |-
       - op: replace
@@ -38,6 +63,51 @@ patches:
     target:
       kind: Deployment
       name: qainsight-beat
+
+  # ── Raise HPA ceilings for production workload ────────────────────────────
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 8
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-backend-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 8
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-ingestion-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 6
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-ai-hpa
+
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 6
+    target:
+      kind: HorizontalPodAutoscaler
+      name: qainsight-worker-critical-hpa
 
 images:
   - name: qainsight/backend

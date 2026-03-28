@@ -9,10 +9,12 @@ resources:
   - secrets.yaml
   - rbac.yaml
   - backend-deployment.yaml
-  - worker-deployments.yaml
   - frontend-deployment.yaml
+  - worker-deployments.yaml   # 4 queue-scoped workers + beat (independently scalable)
   - mcp-deployment.yaml
   - ollama-deployment.yaml
+  - hpa.yaml                  # all HPAs consolidated here (not embedded in deployments)
+  - pdb.yaml                  # PodDisruptionBudgets for graceful node drains
   - services.yaml
   - ingress.yaml
 
