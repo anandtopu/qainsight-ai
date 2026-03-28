@@ -145,7 +145,7 @@ def test_flaky_tests_sql_omits_project_filter_when_none():
     # Directly inspect the SQL generated inside flaky_tests by calling it with
     # a patched db that captures the executed SQL.
     import asyncio
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
 
     captured_sql = []
 
