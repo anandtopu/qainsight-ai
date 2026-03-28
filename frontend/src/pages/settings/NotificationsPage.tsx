@@ -508,12 +508,12 @@ function SmtpConfigCard() {
               />
             </div>
 
-            {/* TLS toggle */}
+            {/* TLS / STARTTLS mode toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm text-slate-300">Use TLS / STARTTLS</span>
+                <span className="text-sm text-slate-300">Connection security mode</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  TLS on port 465 · STARTTLS on port 587
+                  Toggle between implicit TLS (typically port 465) and STARTTLS (typically port 587). Plain SMTP is not supported.
                 </p>
               </div>
               <button
