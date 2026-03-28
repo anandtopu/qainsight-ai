@@ -129,6 +129,9 @@ async def test_smtp_config(
         )
         logger.info("SMTP test email sent to %s", current_user.email)
         return SmtpTestResult(success=True, message=f"Test email sent to {current_user.email}")
-    except Exception as exc:
-        logger.warning("SMTP test failed: %s", exc)
-        return SmtpTestResult(success=False, message=str(exc))
+    except Exception:
+        logger.exception("SMTP test failed")
+        return SmtpTestResult(
+            success=False,
+            message="Failed to send test email. Please verify the SMTP configuration and try again.",
+        )
