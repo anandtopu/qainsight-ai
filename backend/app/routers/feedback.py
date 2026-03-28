@@ -11,7 +11,7 @@ GET  /api/v1/training/status             — model registry + pending example co
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
