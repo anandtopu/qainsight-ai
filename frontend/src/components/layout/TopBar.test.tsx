@@ -6,13 +6,16 @@ import TopBar from './TopBar'
 const mocked = vi.hoisted(() => {
   const navigate = vi.fn()
   const setActiveProject = vi.fn()
+  const setAllProjects = vi.fn()
   const logout = vi.fn()
   const markAllRead = vi.fn(async () => {})
   const refreshLogs = vi.fn()
 
   const projectStoreState = {
     activeProject: null as null | { id: string; name: string },
+    activeProjectId: null as null | string,
     setActiveProject,
+    setAllProjects,
   }
 
   const authState = {
@@ -37,11 +40,13 @@ const mocked = vi.hoisted(() => {
   return {
     navigate,
     setActiveProject,
+    setAllProjects,
     logout,
     markAllRead,
     refreshLogs,
     useProjectStore,
     useAuthStore,
+    projectStoreState,
   }
 })
 
@@ -55,6 +60,7 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('@/store/projectStore', () => ({
   useProjectStore: mocked.useProjectStore,
+  ALL_PROJECTS_ID: 'all',
 }))
 
 vi.mock('@/store/authStore', () => ({
@@ -86,9 +92,12 @@ describe('TopBar', () => {
   beforeEach(() => {
     mocked.navigate.mockClear()
     mocked.setActiveProject.mockClear()
+    mocked.setAllProjects.mockClear()
     mocked.logout.mockClear()
     mocked.markAllRead.mockClear()
     mocked.refreshLogs.mockClear()
+    mocked.projectStoreState.activeProjectId = null
+    mocked.projectStoreState.activeProject = null
   })
 
   it('navigates to search page on Enter', () => {
@@ -119,6 +128,35 @@ describe('TopBar', () => {
     const select = screen.getByRole('combobox')
     fireEvent.change(select, { target: { value: 'p1' } })
     expect(mocked.setActiveProject).toHaveBeenCalledWith({ id: 'p1', name: 'Core UI' })
+  })
+
+  it('shows "All Projects" option in project selector', async () => {
+    render(
+      <MemoryRouter>
+        <TopBar />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'All Projects' })).toBeInTheDocument()
+    })
+  })
+
+  it('calls setAllProjects when "All Projects" is selected', async () => {
+    render(
+      <MemoryRouter>
+        <TopBar />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'All Projects' })).toBeInTheDocument()
+    })
+
+    const select = screen.getByRole('combobox')
+    fireEvent.change(select, { target: { value: 'all' } })
+    expect(mocked.setAllProjects).toHaveBeenCalledTimes(1)
+    expect(mocked.setActiveProject).not.toHaveBeenCalled()
   })
 
   it('opens notification panel and marks all as read', async () => {

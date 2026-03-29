@@ -11,7 +11,7 @@ from app.models.postgres import Defect, TestCase, TestRun, TestStatus
 logger = logging.getLogger(__name__)
 
 
-async def get_dashboard_summary(db: AsyncSession, project_id: str, days: int = 7) -> dict:
+async def get_dashboard_summary(db: AsyncSession, project_id: str | None, days: int = 7) -> dict:
     """Compute all Executive Dashboard KPIs for a project."""
     now = datetime.now(timezone.utc)
     period_start = now - timedelta(days=days)
@@ -39,11 +39,11 @@ async def get_dashboard_summary(db: AsyncSession, project_id: str, days: int = 7
     total_exec_trend = trend(total_exec, prev["total_runs"])
 
     # Active defects (all open, not time-bounded)
+    defect_conditions = [Defect.resolution_status == "OPEN"]
+    if project_id:
+        defect_conditions.append(Defect.project_id == project_id)
     defect_result = await db.execute(
-        select(func.count(Defect.id)).where(
-            Defect.project_id == project_id,
-            Defect.resolution_status == "OPEN",
-        )
+        select(func.count(Defect.id)).where(*defect_conditions)
     )
     active_defects = defect_result.scalar() or 0
 
@@ -52,14 +52,16 @@ async def get_dashboard_summary(db: AsyncSession, project_id: str, days: int = 7
 
     # New failures in last 24h
     yesterday = now - timedelta(hours=24)
+    fail_conditions = [
+        TestCase.status == TestStatus.FAILED,
+        TestCase.created_at >= yesterday,
+    ]
+    if project_id:
+        fail_conditions.append(TestRun.project_id == project_id)
     new_fail_result = await db.execute(
         select(func.count(TestCase.id))
         .join(TestRun)
-        .where(
-            TestRun.project_id == project_id,
-            TestCase.status == TestStatus.FAILED,
-            TestCase.created_at >= yesterday,
-        )
+        .where(*fail_conditions)
     )
     new_failures_24h = new_fail_result.scalar() or 0
 
@@ -101,10 +103,11 @@ async def get_dashboard_summary(db: AsyncSession, project_id: str, days: int = 7
     }
 
 
-async def get_trend_data(db: AsyncSession, project_id: str, days: int = 7) -> list:
+async def get_trend_data(db: AsyncSession, project_id: str | None, days: int = 7) -> list:
     """Return daily pass/fail/skip breakdown for the trend chart."""
     period_start = datetime.now(timezone.utc) - timedelta(days=days)
-    query = text("""
+    project_filter = "AND tr.project_id = :project_id" if project_id else ""
+    query = text(f"""
         SELECT
             DATE_TRUNC('day', tr.created_at) AS day,
             COALESCE(SUM(tr.passed_tests), 0)  AS passed,
@@ -114,12 +117,15 @@ async def get_trend_data(db: AsyncSession, project_id: str, days: int = 7) -> li
             COALESCE(SUM(tr.total_tests), 0)   AS total,
             COALESCE(AVG(tr.pass_rate), 0)     AS pass_rate
         FROM test_runs tr
-        WHERE tr.project_id = :project_id
-          AND tr.created_at >= :period_start
+        WHERE tr.created_at >= :period_start
+          {project_filter}
         GROUP BY day
         ORDER BY day ASC
     """)
-    result = await db.execute(query, {"project_id": str(project_id), "period_start": period_start})
+    params: dict = {"period_start": period_start}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     rows = result.fetchall()
 
     return [
@@ -136,17 +142,16 @@ async def get_trend_data(db: AsyncSession, project_id: str, days: int = 7) -> li
     ]
 
 
-async def _period_stats(db: AsyncSession, project_id: str, start: datetime, end: datetime) -> dict:
+async def _period_stats(db: AsyncSession, project_id: str | None, start: datetime, end: datetime) -> dict:
+    conditions = [TestRun.created_at >= start, TestRun.created_at < end]
+    if project_id:
+        conditions.append(TestRun.project_id == project_id)
     result = await db.execute(
         select(
             func.count(TestRun.id).label("total_runs"),
             func.avg(TestRun.pass_rate).label("pass_rate"),
             func.avg(TestRun.duration_ms).label("avg_duration_ms"),
-        ).where(
-            TestRun.project_id == project_id,
-            TestRun.created_at >= start,
-            TestRun.created_at < end,
-        )
+        ).where(*conditions)
     )
     row = result.one()
     return {
@@ -156,9 +161,10 @@ async def _period_stats(db: AsyncSession, project_id: str, start: datetime, end:
     }
 
 
-async def _count_flaky_tests(db: AsyncSession, project_id: str) -> int:
+async def _count_flaky_tests(db: AsyncSession, project_id: str | None) -> int:
     """Count tests with failure rate between 10% and 90% over last 10 runs (flaky pattern)."""
-    query = text("""
+    project_filter = "WHERE tr.project_id = :project_id" if project_id else ""
+    query = text(f"""
         SELECT COUNT(DISTINCT fingerprint) FROM (
             SELECT
                 tch.test_fingerprint AS fingerprint,
@@ -166,13 +172,16 @@ async def _count_flaky_tests(db: AsyncSession, project_id: str) -> int:
                 COUNT(*) AS total_count
             FROM test_case_history tch
             JOIN test_runs tr ON tr.id = tch.test_run_id
-            WHERE tr.project_id = :project_id
+            {project_filter}
             GROUP BY tch.test_fingerprint
             HAVING COUNT(*) >= 5
                AND COUNT(*) FILTER (WHERE tch.status = 'FAILED') * 1.0 / COUNT(*) BETWEEN 0.1 AND 0.9
         ) flaky
     """)
-    result = await db.execute(query, {"project_id": str(project_id)})
+    params: dict = {}
+    if project_id:
+        params["project_id"] = str(project_id)
+    result = await db.execute(query, params)
     return result.scalar() or 0
 
 

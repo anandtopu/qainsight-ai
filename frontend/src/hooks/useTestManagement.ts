@@ -1,5 +1,7 @@
 import useSWR from 'swr'
-import { testManagementService } from '@/services/testManagementService'
+import { testManagementService, usersService } from '@/services/testManagementService'
+import type { UserSummary } from '@/services/testManagementService'
+import { ALL_PROJECTS_ID } from '@/store/projectStore'
 import { useActiveProjectId, useProjectScopedSWR } from './useProjectScopedSWR'
 
 export function useTestCases(params?: Record<string, unknown>) {
@@ -72,7 +74,7 @@ export function useStrategies() {
   return useProjectScopedSWR(
     'tm-strategies',
     (projectId) => testManagementService.listStrategies(projectId),
-    { refreshInterval: 120_000 }
+    { refreshInterval: 30_000 }
   )
 }
 
@@ -84,11 +86,19 @@ export function useStrategy(id?: string) {
   )
 }
 
+export function useUsers() {
+  return useSWR<UserSummary[]>('users', () => usersService.listUsers(), {
+    refreshInterval: 0,
+    revalidateOnFocus: false,
+  })
+}
+
 export function useAuditLog(params?: { entity_type?: string; action?: string; page?: number; size?: number }) {
   const projectId = useActiveProjectId()
+  const fetchProjectId = projectId === ALL_PROJECTS_ID ? null : projectId
   return useSWR(
-    projectId ? ['tm-audit', projectId, params] : null,
-    () => testManagementService.getAuditLog(projectId as string, params),
+    projectId !== null ? ['tm-audit', projectId, params] : null,
+    () => testManagementService.getAuditLog(fetchProjectId, params),
     { refreshInterval: 60_000 }
   )
 }

@@ -17,11 +17,12 @@ import { useProjectStore } from '@/store/projectStore'
 import {
   useTestCases, useTestPlans, useStrategies, useAuditLog,
   useTestCaseHistory, useTestCaseReviews, useTestCaseComments,
-  usePlanItems,
+  usePlanItems, useUsers,
 } from '@/hooks/useTestManagement'
 import {
   testManagementService,
 } from '@/services/testManagementService'
+import type { UserSummary } from '@/services/testManagementService'
 import type {
   AIReviewResult,
   ManagedTestCase,
@@ -116,6 +117,7 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
   const [title, setTitle] = useState('')
   const [testType, setTestType] = useState('functional')
   const [priority, setPriority] = useState('medium')
+  const [assigneeId, setAssigneeId] = useState<string>('')
   const [featureArea, setFeatureArea] = useState('')
   const [objective, setObjective] = useState('')
   const [preconditions, setPreconditions] = useState('')
@@ -124,6 +126,7 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
   const [testData, setTestData] = useState('')
   const [estimatedDuration, setEstimatedDuration] = useState('')
   const [saving, setSaving] = useState(false)
+  const { data: users = [] } = useUsers()
 
   const addStep = () => setSteps(s => [...s, { step_number: s.length + 1, action: '', expected_result: '' }])
   const removeStep = (i: number) => setSteps(s => s.filter((_, idx) => idx !== i).map((st, idx) => ({ ...st, step_number: idx + 1 })))
@@ -139,6 +142,7 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
         title: title.trim(),
         test_type: testType,
         priority,
+        assignee_id: assigneeId || undefined,
         feature_area: featureArea || undefined,
         objective: objective || undefined,
         preconditions: preconditions || undefined,
@@ -184,6 +188,17 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">Assignee (optional)</label>
+          <select className="input w-full" value={assigneeId} onChange={e => setAssigneeId(e.target.value)}>
+            <option value="">Unassigned</option>
+            {(users as UserSummary[]).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name ?? u.username}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Feature Area</label>
@@ -833,7 +848,7 @@ function GenerateStrategyModal({ projectId, onClose }: GenerateStrategyModalProp
 
 // ─── Tab: Test Cases ──────────────────────────────────────────────────────────
 
-interface TestCasesTabProps { projectId: string }
+interface TestCasesTabProps { projectId: string | null }
 
 function TestCasesTab({ projectId }: TestCasesTabProps) {
   const [page, setPage] = useState(1)
@@ -900,12 +915,16 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <button onClick={() => setShowAiGen(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
-            <Sparkles className="h-4 w-4" /> AI Generate
-          </button>
-          <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <Plus className="h-4 w-4" /> New Test Case
-          </button>
+          {projectId && (
+            <>
+              <button onClick={() => setShowAiGen(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
+                <Sparkles className="h-4 w-4" /> AI Generate
+              </button>
+              <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+                <Plus className="h-4 w-4" /> New Test Case
+              </button>
+            </>
+          )}
         </div>
 
         {/* Table */}
@@ -916,12 +935,12 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
             <EmptyState
               icon={<ClipboardList className="h-10 w-10" />}
               title="No test cases found"
-              description="Create your first test case or use AI to generate them from requirements"
-              action={
+              description={projectId ? "Create your first test case or use AI to generate them from requirements" : "No test cases found across all projects"}
+              action={projectId ? (
                 <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
                   <Plus className="h-4 w-4" /> New Test Case
                 </button>
-              }
+              ) : undefined}
             />
           ) : (
             <>
@@ -977,14 +996,14 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
         </div>
       </div>
 
-      {showCreate && (
+      {showCreate && projectId && (
         <CreateCaseModal
           projectId={projectId}
           onClose={() => setShowCreate(false)}
           onCreated={handleRefresh}
         />
       )}
-      {showAiGen && (
+      {showAiGen && projectId && (
         <AIGenerateModal
           projectId={projectId}
           onClose={() => setShowAiGen(false)}
@@ -1084,7 +1103,7 @@ function PlanItemsView({ planId, onMutate }: PlanItemsViewProps) {
 
 // ─── Tab: Test Plans ──────────────────────────────────────────────────────────
 
-interface TestPlansTabProps { projectId: string }
+interface TestPlansTabProps { projectId: string | null }
 
 function TestPlansTab({ projectId }: TestPlansTabProps) {
   const [page, setPage] = useState(1)
@@ -1097,7 +1116,7 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
   const handleAiCreatePlan = async () => {
     setAiLoading(true)
     try {
-      await testManagementService.aiCreatePlanAsync({ project_id: projectId })
+      await testManagementService.aiCreatePlanAsync({ project_id: projectId! })
       toast.success(
         'AI is building the test plan in the background — refresh the list in a moment.',
         { duration: 7000 }
@@ -1130,19 +1149,21 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
   return (
     <>
       <div className="space-y-4">
-        <div className="flex items-center justify-end gap-3">
-          <button
-            onClick={handleAiCreatePlan}
-            disabled={aiLoading}
-            className="btn-secondary flex items-center gap-2"
-          >
-            {aiLoading ? <LoadingSpinner size="sm" /> : <Sparkles className="h-4 w-4" />}
-            AI Create Plan
-          </button>
-          <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="h-4 w-4" /> New Plan
-          </button>
-        </div>
+        {projectId && (
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={handleAiCreatePlan}
+              disabled={aiLoading}
+              className="btn-secondary flex items-center gap-2"
+            >
+              {aiLoading ? <LoadingSpinner size="sm" /> : <Sparkles className="h-4 w-4" />}
+              AI Create Plan
+            </button>
+            <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="h-4 w-4" /> New Plan
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center h-48"><LoadingSpinner size="lg" /></div>
@@ -1150,12 +1171,12 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
           <EmptyState
             icon={<BookOpen className="h-10 w-10" />}
             title="No test plans"
-            description="Create a test plan to organize and track test execution"
-            action={
+            description={projectId ? "Create a test plan to organize and track test execution" : "No test plans found across all projects"}
+            action={projectId ? (
               <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
                 <Plus className="h-4 w-4" /> New Plan
               </button>
-            }
+            ) : undefined}
           />
         ) : (
           <div className="space-y-3">
@@ -1232,7 +1253,7 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
         )}
       </div>
 
-      {showCreate && (
+      {showCreate && projectId && (
         <CreatePlanModal
           projectId={projectId}
           onClose={() => setShowCreate(false)}
@@ -1245,14 +1266,29 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
 
 // ─── Tab: Strategy ────────────────────────────────────────────────────────────
 
-interface StrategyTabProps { projectId: string }
+interface StrategyTabProps { projectId: string | null }
 
 function StrategyTab({ projectId }: StrategyTabProps) {
   const [showGenerate, setShowGenerate] = useState(false)
   const [expandedSection, setExpandedSection] = useState<string | null>('objective')
+  const [updatingStatus, setUpdatingStatus] = useState(false)
   const { data: strategies, isLoading, mutate } = useStrategies()
 
   const strategy = strategies?.[0] as TestStrategy | undefined
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!strategy) return
+    setUpdatingStatus(true)
+    try {
+      await testManagementService.updateStrategy(strategy.id, { status: newStatus })
+      mutate()
+      toast.success('Strategy status updated')
+    } catch {
+      toast.error('Failed to update status')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
 
   const AccordionSection = ({
     id, title, children
@@ -1279,11 +1315,13 @@ function StrategyTab({ projectId }: StrategyTabProps) {
   return (
     <>
       <div className="space-y-4">
-        <div className="flex items-center justify-end">
-          <button onClick={() => setShowGenerate(true)} className="btn-primary flex items-center gap-2">
-            <Sparkles className="h-4 w-4" /> Generate Strategy
-          </button>
-        </div>
+        {projectId && (
+          <div className="flex items-center justify-end">
+            <button onClick={() => setShowGenerate(true)} className="btn-primary flex items-center gap-2">
+              <Sparkles className="h-4 w-4" /> Generate Strategy
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center h-48"><LoadingSpinner size="lg" /></div>
@@ -1291,12 +1329,12 @@ function StrategyTab({ projectId }: StrategyTabProps) {
           <EmptyState
             icon={<BarChart2 className="h-10 w-10" />}
             title="No test strategy"
-            description="Generate a comprehensive AI-powered test strategy for your project"
-            action={
+            description={projectId ? "Generate a comprehensive AI-powered test strategy for your project" : "No test strategies found across all projects"}
+            action={projectId ? (
               <button onClick={() => setShowGenerate(true)} className="btn-primary flex items-center gap-2">
                 <Sparkles className="h-4 w-4" /> Generate Strategy
               </button>
-            }
+            ) : undefined}
           />
         ) : (
           <div className="space-y-3">
@@ -1306,7 +1344,16 @@ function StrategyTab({ projectId }: StrategyTabProps) {
                 <div>
                   <h3 className="text-base font-semibold text-slate-100">{strategy.name}</h3>
                   <div className="flex items-center gap-3 mt-1">
-                    <StatusPill status={strategy.status} map={PLAN_STATUS_COLORS} />
+                    <select
+                      value={strategy.status}
+                      onChange={e => handleStatusChange(e.target.value)}
+                      disabled={updatingStatus}
+                      className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {['draft', 'active', 'suspended', 'closed', 'review', 'approved'].map(s => (
+                        <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                      ))}
+                    </select>
                     <span className="text-xs text-slate-500">v{strategy.version_label}</span>
                     {strategy.ai_generated && (
                       <span className="text-xs text-purple-400 flex items-center gap-1">
@@ -1433,10 +1480,10 @@ function StrategyTab({ projectId }: StrategyTabProps) {
         )}
       </div>
 
-      {showGenerate && (
+      {showGenerate && projectId && (
         <GenerateStrategyModal
           projectId={projectId}
-          onClose={() => setShowGenerate(false)}
+          onClose={() => { setShowGenerate(false); mutate() }}
         />
       )}
     </>
@@ -1445,7 +1492,7 @@ function StrategyTab({ projectId }: StrategyTabProps) {
 
 // ─── Tab: Reviews ─────────────────────────────────────────────────────────────
 
-interface ReviewsTabProps { projectId: string }
+interface ReviewsTabProps { projectId: string | null }
 
 function ReviewsTab({ projectId: _projectId }: ReviewsTabProps) {
   const [reviewingId, setReviewingId] = useState<string | null>(null)
@@ -1558,7 +1605,7 @@ function ReviewsTab({ projectId: _projectId }: ReviewsTabProps) {
 
 // ─── Tab: Audit Log ───────────────────────────────────────────────────────────
 
-interface AuditTabProps { projectId: string }
+interface AuditTabProps { projectId: string | null }
 
 function AuditTab({ projectId }: AuditTabProps) {
   const [page, setPage] = useState(1)
@@ -1657,8 +1704,9 @@ export default function TestManagementPage() {
 
   const project = useProjectStore(s => s.activeProject)
   const projectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = projectId === 'all'
 
-  if (!project || !projectId) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<ClipboardList className="h-10 w-10" />}
@@ -1668,11 +1716,14 @@ export default function TestManagementPage() {
     )
   }
 
+  // Pass null to tabs in All Projects mode — disables mutations, enables read-only list
+  const tabProjectId = isAllProjects ? null : projectId
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Test Case Management"
-        subtitle={`Manage test cases, plans, strategies and reviews for ${project.name}`}
+        subtitle={`Manage test cases, plans, strategies and reviews${project ? ` for ${project.name}` : ' — All Projects'}`}
       />
 
       {/* Tab navigation */}
@@ -1695,11 +1746,11 @@ export default function TestManagementPage() {
 
       {/* Tab content */}
       <div>
-        {activeTab === 'Test Cases'  && <TestCasesTab projectId={projectId} />}
-        {activeTab === 'Test Plans'  && <TestPlansTab projectId={projectId} />}
-        {activeTab === 'Strategy'    && <StrategyTab projectId={projectId} />}
-        {activeTab === 'Reviews'     && <ReviewsTab projectId={projectId} />}
-        {activeTab === 'Audit Log'   && <AuditTab projectId={projectId} />}
+        {activeTab === 'Test Cases'  && <TestCasesTab projectId={tabProjectId} />}
+        {activeTab === 'Test Plans'  && <TestPlansTab projectId={tabProjectId} />}
+        {activeTab === 'Strategy'    && <StrategyTab projectId={tabProjectId} />}
+        {activeTab === 'Reviews'     && <ReviewsTab projectId={tabProjectId} />}
+        {activeTab === 'Audit Log'   && <AuditTab projectId={tabProjectId} />}
       </div>
     </div>
   )

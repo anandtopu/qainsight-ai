@@ -10,7 +10,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useReleases, useRelease } from '@/hooks/useReleases'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import { releasesService } from '@/services/releasesService'
 import { useRuns } from '@/hooks/useRuns'
 import type { LinkedRun, Release, ReleaseDetail, ReleasePhase } from '@/types/releases'
@@ -488,12 +488,19 @@ export default function ReleasesPage() {
     } catch { toast.error('Failed to delete release') }
   }
 
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
+
   if (!project) {
     return (
       <EmptyState
         icon={<Package className="h-10 w-10" />}
-        title="No project selected"
-        description="Select a project from the top bar"
+        title={isAllProjects ? 'Select a specific project' : 'No project selected'}
+        description={
+          isAllProjects
+            ? 'Releases are managed per project — select a specific project from the top bar'
+            : 'Select a project from the top bar'
+        }
       />
     )
   }

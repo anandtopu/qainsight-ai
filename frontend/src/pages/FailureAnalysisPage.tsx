@@ -9,7 +9,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useFlakyTests, useFailureCategories, useTopFailing } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 
 const PERIODS = [
   { label: '7d',  days: 7 },
@@ -55,12 +55,14 @@ function FlakyScore({ rate }: { rate: number }) {
 export default function FailureAnalysisPage() {
   const [days, setDays] = useState(30)
   const project = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
 
   const { data: flakyData,    isLoading: flakyLoading    } = useFlakyTests(days)
   const { data: categoryData, isLoading: categoryLoading } = useFailureCategories(days)
   const { data: topData,      isLoading: topLoading      } = useTopFailing(days)
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<Bug className="h-10 w-10" />}
@@ -69,6 +71,8 @@ export default function FailureAnalysisPage() {
       />
     )
   }
+
+  const projectLabel = project?.name ?? 'All Projects'
 
   const isLoading = flakyLoading || categoryLoading || topLoading
 
@@ -103,7 +107,7 @@ export default function FailureAnalysisPage() {
     <div className="space-y-6">
       <PageHeader
         title="Failure Analysis"
-        subtitle={`Flaky leaderboard, error clustering & repeat-failure detection for ${project.name}`}
+        subtitle={`Flaky leaderboard, error clustering & repeat-failure detection for ${projectLabel}`}
         actions={periodSelector}
       />
 
@@ -195,6 +199,7 @@ export default function FailureAnalysisPage() {
                       <th className="th text-left">#</th>
                       <th className="th text-left">Test Name</th>
                       <th className="th text-left">Suite</th>
+                      {isAllProjects && <th className="th text-left">Project</th>}
                       <th className="th text-right">Runs</th>
                       <th className="th text-right">Fails</th>
                       <th className="th min-w-[160px]">Flakiness Rate</th>
@@ -205,6 +210,7 @@ export default function FailureAnalysisPage() {
                       test_fingerprint: string
                       test_name: string
                       suite_name?: string
+                      project_name?: string
                       total_runs: number
                       fail_count: number
                       failure_rate_pct: number
@@ -213,6 +219,7 @@ export default function FailureAnalysisPage() {
                         <td className="td text-slate-500">{i + 1}</td>
                         <td className="td font-medium text-slate-200 max-w-[280px] truncate">{t.test_name}</td>
                         <td className="td text-slate-400 max-w-[160px] truncate">{t.suite_name ?? '—'}</td>
+                        {isAllProjects && <td className="td text-slate-400 text-xs max-w-[120px] truncate">{t.project_name ?? '—'}</td>}
                         <td className="td text-right tabular-nums text-slate-300">{t.total_runs}</td>
                         <td className="td text-right tabular-nums text-red-400 font-semibold">{t.fail_count}</td>
                         <td className="td w-48">

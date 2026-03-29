@@ -1,6 +1,7 @@
 import useSWR from 'swr'
 import { metricsService } from '@/services/metricsService'
 import { analyticsService } from '@/services/analyticsService'
+import { ALL_PROJECTS_ID } from '@/store/projectStore'
 import { useActiveProjectId, useProjectScopedSWR } from './useProjectScopedSWR'
 
 export function useDashboardSummary(days = 7) {
@@ -68,9 +69,10 @@ export function useDefects(page = 1, resolutionStatus?: string) {
 
 export function useSuiteDetail(suiteName: string | null, days = 30) {
   const projectId = useActiveProjectId()
+  const fetchProjectId = projectId === ALL_PROJECTS_ID ? null : projectId
   return useSWR(
     projectId && suiteName ? ['analytics-suite-detail', projectId, suiteName, days] : null,
-    () => analyticsService.getSuiteDetail(projectId as string, suiteName as string, days),
+    () => analyticsService.getSuiteDetail(fetchProjectId, suiteName as string, days),
     { revalidateOnFocus: false },
   )
 }

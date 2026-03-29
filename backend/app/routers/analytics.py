@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 
 @router.get("/flaky-tests")
 async def flaky_tests(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -26,7 +26,7 @@ async def flaky_tests(
 
 @router.get("/failure-categories")
 async def failure_categories(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
@@ -38,7 +38,7 @@ async def failure_categories(
 
 @router.get("/top-failing")
 async def top_failing_tests(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(15, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
@@ -51,7 +51,7 @@ async def top_failing_tests(
 
 @router.get("/coverage")
 async def coverage_stats(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
@@ -63,8 +63,8 @@ async def coverage_stats(
 
 @router.get("/suite-detail")
 async def suite_detail(
-    project_id: str,
-    suite_name: str,
+    project_id: str | None = None,
+    suite_name: str = "",
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
@@ -81,7 +81,7 @@ async def suite_detail(
 
 @router.get("/defects")
 async def list_defects(
-    project_id: str,
+    project_id: str | None = None,
     resolution_status: str | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
@@ -95,7 +95,7 @@ async def list_defects(
 
 @router.get("/ai-summary")
 async def ai_analysis_summary(
-    project_id: str,
+    project_id: str | None = None,
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):

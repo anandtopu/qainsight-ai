@@ -13,7 +13,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useTrendData } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import type { TrendPoint } from '@/types/metrics'
 import { postData } from '@/services/http'
 
@@ -353,6 +353,7 @@ export default function TrendsPage() {
   const [showEmail, setShowEmail]   = useState(false)
   const project   = useProjectStore(s => s.activeProject)
   const projectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = projectId === ALL_PROJECTS_ID
   const { data: trends, isLoading } = useTrendData(days)
 
   useEffect(() => { saveEnabledCharts(enabledCharts) }, [enabledCharts])
@@ -410,7 +411,7 @@ export default function TrendsPage() {
     window.print()
   }
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<TrendingUp className="h-10 w-10" />}
@@ -419,6 +420,8 @@ export default function TrendsPage() {
       />
     )
   }
+
+  const projectLabel = project?.name ?? 'All Projects'
 
   const trendData = trends?.data ?? []
 
@@ -445,7 +448,7 @@ export default function TrendsPage() {
       <div className="space-y-6 print:space-y-4">
         <PageHeader
           title="Trends"
-          subtitle={`Historical trends for ${project.name}`}
+          subtitle={`Historical trends for ${projectLabel}`}
           actions={
             <div className="flex items-center gap-2 print:hidden">
               {/* Period selector */}

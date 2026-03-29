@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +37,7 @@ router = APIRouter()
 
 @router.get("/cases", response_model=ManagedTestCaseListResponse)
 async def list_test_cases(
-    project_id: uuid.UUID,
+    project_id: Optional[uuid.UUID] = None,
     status: str | None = None,
     test_type: str | None = None,
     priority: str | None = None,

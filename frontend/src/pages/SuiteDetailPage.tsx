@@ -12,7 +12,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useSuiteDetail } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import type { SuiteDetailSummary } from '@/types/analytics'
 
 const PERIODS = [
@@ -80,14 +80,16 @@ function fmtDate(iso: string | null | undefined) {
 export default function SuiteDetailPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const project  = useProjectStore(s => s.activeProject)
+  const project       = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
 
   const suiteName  = searchParams.get('name') ?? ''
   const [days, setDays] = useState(() => Number(searchParams.get('days') ?? 30))
 
   const { data, isLoading, error } = useSuiteDetail(suiteName || null, days)
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<Layers className="h-10 w-10" />}

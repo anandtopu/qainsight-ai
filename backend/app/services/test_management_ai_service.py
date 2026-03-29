@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -176,8 +177,11 @@ async def analyze_case_coverage(db: AsyncSession, payload: AICoverageAnalysisReq
     return await ai_analyze_coverage(payload.requirements, existing)
 
 
-async def list_strategies(db: AsyncSession, project_id: uuid.UUID) -> list[TestStrategy]:
-    result = await db.execute(select(TestStrategy).where(TestStrategy.project_id == project_id).order_by(TestStrategy.created_at.desc()))
+async def list_strategies(db: AsyncSession, project_id: Optional[uuid.UUID]) -> list[TestStrategy]:
+    query = select(TestStrategy).order_by(TestStrategy.created_at.desc())
+    if project_id:
+        query = query.where(TestStrategy.project_id == project_id)
+    result = await db.execute(query)
     return list(result.scalars().all())
 
 
@@ -251,9 +255,14 @@ async def update_strategy(
     current_user: User,
 ) -> TestStrategy:
     strategy = await get_strategy_or_404(db, strategy_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    old_values = {field: getattr(strategy, field) for field in changes}
+    for field, value in changes.items():
         setattr(strategy, field, value)
-    await audit_event(db, "test_strategy", strategy.id, strategy.project_id, "updated", current_user)
+    await audit_event(
+        db, "test_strategy", strategy.id, strategy.project_id, "updated", current_user,
+        old_values=old_values, new_values=changes,
+    )
     await db.commit()
     await db.refresh(strategy)
     return strategy

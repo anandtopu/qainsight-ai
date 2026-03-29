@@ -13,6 +13,7 @@ import { useFailureClusters, useDeepFindings } from '@/hooks/useDeepInvestigatio
 import { deepInvestigationService } from '@/services/deepInvestigationService'
 import type { DeepFinding, FailureCluster } from '@/types/deep-investigation'
 import { useRuns } from '@/hooks/useRuns'
+import { useProjectStore } from '@/store/projectStore'
 
 const CATEGORY_COLOUR: Record<string, string> = {
   PRODUCT_BUG:      'text-red-400',
@@ -220,12 +221,21 @@ export default function DeepInvestigationPage() {
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null)
   const [triggering, setTriggering] = useState(false)
 
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
   const { data: recentRuns } = useRuns({ page: 1, size: 1 })
   useEffect(() => {
     if (!runId && recentRuns?.items?.[0]?.id) {
       navigate(`/deep-investigate/${recentRuns.items[0].id}`, { replace: true })
     }
   }, [runId, recentRuns, navigate])
+
+  useEffect(() => {
+    // When project changes, clear the current run selection to avoid showing stale data
+    if (runId) {
+      navigate('/deep-investigate', { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId])
 
   const { data: clusters = [], isLoading: clustersLoading, mutate: mutateClusters } = useFailureClusters(runId ?? null)
   const { data: findings = [], isLoading: findingsLoading, mutate: mutateFindings } = useDeepFindings(runId ?? null)

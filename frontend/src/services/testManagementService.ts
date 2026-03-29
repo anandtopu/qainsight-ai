@@ -12,12 +12,12 @@ import type {
   TestPlanItem,
   TestStrategy,
 } from '@/types/test-management'
-import { deleteData, getData, patchData, postData } from './http'
+import { deleteData, getData, patchData, postData, putData } from './http'
 
 export const testManagementService = {
   // Test Cases
-  listCases: (projectId: string, params?: Record<string, unknown>): Promise<PaginatedResponse<ManagedTestCase>> =>
-    getData('/api/v1/test-management/cases', { params: { project_id: projectId, ...params } }),
+  listCases: (projectId: string | null, params?: Record<string, unknown>): Promise<PaginatedResponse<ManagedTestCase>> =>
+    getData('/api/v1/test-management/cases', { params: { ...(projectId ? { project_id: projectId } : {}), ...params } }),
 
   createCase: (data: Partial<ManagedTestCase>): Promise<ManagedTestCase> =>
     postData('/api/v1/test-management/cases', data),
@@ -66,8 +66,8 @@ export const testManagementService = {
     postData('/api/v1/test-management/cases/ai-coverage', data),
 
   // Test Plans
-  listPlans: (projectId: string, params?: Record<string, unknown>): Promise<PaginatedResponse<TestPlan>> =>
-    getData('/api/v1/test-management/plans', { params: { project_id: projectId, ...params } }),
+  listPlans: (projectId: string | null, params?: Record<string, unknown>): Promise<PaginatedResponse<TestPlan>> =>
+    getData('/api/v1/test-management/plans', { params: { ...(projectId ? { project_id: projectId } : {}), ...params } }),
 
   createPlan: (data: Partial<TestPlan>): Promise<TestPlan> =>
     postData('/api/v1/test-management/plans', data),
@@ -97,14 +97,14 @@ export const testManagementService = {
     postData('/api/v1/test-management/plans/ai-create/async', data),
 
   // Strategies
-  listStrategies: (projectId: string): Promise<TestStrategy[]> =>
-    getData('/api/v1/test-management/strategies', { params: { project_id: projectId } }),
+  listStrategies: (projectId: string | null): Promise<TestStrategy[]> =>
+    getData('/api/v1/test-management/strategies', { params: projectId ? { project_id: projectId } : {} }),
 
   getStrategy: (id: string): Promise<TestStrategy> =>
     getData(`/api/v1/test-management/strategies/${id}`),
 
   updateStrategy: (id: string, data: Partial<TestStrategy>): Promise<TestStrategy> =>
-    patchData(`/api/v1/test-management/strategies/${id}`, data),
+    putData(`/api/v1/test-management/strategies/${id}`, data),
 
   aiGenerateStrategy: (data: { project_id: string; project_context: string; strategy_name?: string }): Promise<TestStrategy> =>
     postData('/api/v1/test-management/strategies/ai-generate', data),
@@ -113,9 +113,21 @@ export const testManagementService = {
     postData('/api/v1/test-management/strategies/ai-generate/async', data),
 
   // Audit Log
-  getAuditLog: (projectId: string, params?: { entity_type?: string; action?: string; page?: number; size?: number }): Promise<PaginatedResponse<AuditLogEntry>> =>
-    getData('/api/v1/test-management/audit', { params: { project_id: projectId, ...params } }),
+  getAuditLog: (projectId: string | null, params?: { entity_type?: string; action?: string; page?: number; size?: number }): Promise<PaginatedResponse<AuditLogEntry>> =>
+    getData('/api/v1/test-management/audit', { params: { ...(projectId ? { project_id: projectId } : {}), ...params } }),
 }
+export interface UserSummary {
+  id: string
+  username: string
+  full_name?: string
+  email: string
+}
+
+export const usersService = {
+  listUsers: (): Promise<UserSummary[]> =>
+    getData('/api/v1/auth/users'),
+}
+
 export type {
   AICoverageResponse,
   AIGenerateResponse,

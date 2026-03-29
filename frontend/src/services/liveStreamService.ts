@@ -20,7 +20,7 @@ const liveStreamService = {
 
   getActiveSessions: (projectId?: string) => {
     const params = projectId ? { project_id: projectId } : {}
-    return getData<ActiveSessionsResponse>('/api/v1/stream/active', { params })
+    return getData<ActiveSessionsResponse>('/api/v1/stream/active', { params, timeout: 15000 })
   },
 
   getSession: (sessionId: string) =>

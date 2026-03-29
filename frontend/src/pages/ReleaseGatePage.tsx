@@ -11,6 +11,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import { useReleaseDecision } from '@/hooks/useDeepInvestigation'
 import { deepInvestigationService } from '@/services/deepInvestigationService'
 import { useRuns } from '@/hooks/useRuns'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 
 type Recommendation = 'GO' | 'NO_GO' | 'CONDITIONAL_GO'
 
@@ -47,18 +48,88 @@ function RiskGauge({ score }: { score: number }) {
 export default function ReleaseGatePage() {
   const { runId } = useParams<{ runId: string }>()
   const navigate = useNavigate()
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
   const { data: decision, isLoading, error, mutate } = useReleaseDecision(runId ?? null)
   const [overrideMode, setOverrideMode] = useState(false)
   const [overrideRec, setOverrideRec] = useState<Recommendation>('GO')
   const [overrideReason, setOverrideReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const { data: recentRuns } = useRuns({ page: 1, size: 1 })
+  // For All Projects mode: load recent runs list (up to 10) for overview
+  const { data: recentRunsData } = useRuns({ page: 1, size: isAllProjects ? 10 : 1 })
+
   useEffect(() => {
-    if (!runId && recentRuns?.items?.[0]?.id) {
-      navigate(`/release-gate/${recentRuns.items[0].id}`, { replace: true })
+    // Only auto-navigate to latest run when a specific project is selected (not All Projects)
+    if (!runId && !isAllProjects && recentRunsData?.items?.[0]?.id) {
+      navigate(`/release-gate/${recentRunsData.items[0].id}`, { replace: true })
     }
-  }, [runId, recentRuns, navigate])
+  }, [runId, isAllProjects, recentRunsData, navigate])
+
+  // All Projects overview: show list of recent runs with links to their gate decisions
+  if (!runId && isAllProjects) {
+    const runs = recentRunsData?.items ?? []
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Release Gate"
+          subtitle="Recent runs across all projects — select a run to view its gate decision"
+        />
+        {runs.length === 0 ? (
+          <EmptyState
+            icon={<Shield className="h-10 w-10" />}
+            title="No runs found"
+            description="Upload test results to generate release gate assessments."
+          />
+        ) : (
+          <div className="card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="th text-left">Run</th>
+                  <th className="th text-left">Build</th>
+                  <th className="th text-left">Project</th>
+                  <th className="th text-left">Date</th>
+                  <th className="th text-left">Status</th>
+                  <th className="th text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <tr key={run.id} className="table-row">
+                    <td className="td font-mono text-blue-400 text-xs">{run.id.slice(0, 8)}</td>
+                    <td className="td text-slate-300 text-xs">{run.build_number ?? '—'}</td>
+                    <td className="td text-slate-400 text-xs">{run.project_name ?? run.project_id?.slice(0, 8) ?? '—'}</td>
+                    <td className="td text-slate-400 text-xs">
+                      {run.created_at ? new Date(run.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="td">
+                      <span className={clsx(
+                        'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ring-1 ring-inset',
+                        run.status === 'passed' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' :
+                        run.status === 'failed' ? 'bg-red-500/10 text-red-400 ring-red-500/20' :
+                        'bg-slate-500/10 text-slate-400 ring-slate-500/20',
+                      )}>
+                        {(run.status ?? 'unknown').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="td text-right">
+                      <button
+                        onClick={() => navigate(`/release-gate/${run.id}`)}
+                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        View Gate →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (!runId) {
     return (
@@ -76,11 +147,25 @@ export default function ReleaseGatePage() {
 
   if (error || !decision) {
     return (
-      <EmptyState
-        icon={<Shield className="h-10 w-10" />}
-        title="No release decision"
-        description="Trigger deep investigation on this run to generate a release recommendation."
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title="Release Gate"
+          subtitle={`Run ${runId?.slice(0, 8) ?? '—'}`}
+        />
+        <EmptyState
+          icon={<Shield className="h-10 w-10" />}
+          title="No release decision found"
+          description="Deep investigation has not been triggered for this run yet. Run deep investigation to generate a release readiness assessment."
+          action={
+            <button
+              onClick={() => navigate(`/deep-investigate/${runId}`)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Zap className="h-4 w-4" /> Go to Deep Investigation
+            </button>
+          }
+        />
+      </div>
     )
   }
 

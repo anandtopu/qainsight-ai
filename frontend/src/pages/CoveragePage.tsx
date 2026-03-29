@@ -9,7 +9,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useCoverage } from '@/hooks/useMetrics'
-import { useProjectStore } from '@/store/projectStore'
+import { ALL_PROJECTS_ID, useProjectStore } from '@/store/projectStore'
 import type { CoverageSummary } from '@/types/analytics'
 
 const PERIODS = [
@@ -40,6 +40,7 @@ function PassRateBar({ rate }: { rate: number }) {
 
 interface SuiteRow {
   suite_name: string
+  project_name?: string
   unique_tests: number
   passed: number
   failed: number
@@ -51,9 +52,11 @@ export default function CoveragePage() {
   const [days, setDays] = useState(30)
   const navigate = useNavigate()
   const project = useProjectStore(s => s.activeProject)
+  const activeProjectId = useProjectStore(s => s.activeProjectId)
+  const isAllProjects = activeProjectId === ALL_PROJECTS_ID
   const { data: coverageData, isLoading } = useCoverage(days)
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<ShieldCheck className="h-10 w-10" />}
@@ -62,6 +65,8 @@ export default function CoveragePage() {
       />
     )
   }
+
+  const projectLabel = project?.name ?? 'All Projects'
 
   const summary: Partial<CoverageSummary> = coverageData?.summary ?? {}
   const suites: SuiteRow[] = coverageData?.suites ?? []
@@ -94,7 +99,7 @@ export default function CoveragePage() {
     <div className="space-y-6">
       <PageHeader
         title="Test Coverage"
-        subtitle={`Suite breakdown and execution coverage for ${project.name}`}
+        subtitle={`Suite breakdown and execution coverage for ${projectLabel}`}
         actions={periodSelector}
       />
 
@@ -150,6 +155,7 @@ export default function CoveragePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr>
+                    {isAllProjects && <th className="th text-left">Project</th>}
                     <th className="th text-left">Suite</th>
                     <th className="th text-right">Unique Tests</th>
                     <th className="th text-right text-emerald-400">Passed</th>
@@ -165,6 +171,9 @@ export default function CoveragePage() {
                       className="table-row cursor-pointer hover:bg-slate-700/50"
                       onClick={() => navigate(`/coverage/suite?name=${encodeURIComponent(s.suite_name)}&days=${days}`)}
                     >
+                      {isAllProjects && (
+                        <td className="td text-slate-400 text-xs max-w-[120px] truncate">{s.project_name ?? '—'}</td>
+                      )}
                       <td className="td font-medium text-blue-400 hover:text-blue-300 max-w-[240px] truncate">{s.suite_name}</td>
                       <td className="td text-right tabular-nums text-slate-300">{s.unique_tests}</td>
                       <td className="td text-right tabular-nums text-emerald-400">{s.passed}</td>

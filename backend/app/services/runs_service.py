@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.postgres import Release, ReleaseTestRunLink, TestCase, TestRun
+from app.models.postgres import Project, Release, ReleaseTestRunLink, TestCase, TestRun
 
 
 def serialize_run(run: TestRun) -> dict:
@@ -21,15 +21,30 @@ def serialize_run(run: TestRun) -> dict:
     return data
 
 
-def enrich_runs_with_release(runs: list[TestRun], release_map: dict[str, dict[str, str | None]]) -> list[dict]:
+def enrich_runs_with_release(
+    runs: list[TestRun],
+    release_map: dict[str, dict[str, str | None]],
+    project_map: dict[str, str] | None = None,
+) -> list[dict]:
     enriched = []
     for run in runs:
         item = serialize_run(run)
         release = release_map.get(str(run.id), {})
         item["release_name"] = release.get("name")
         item["release_id"] = release.get("id")
+        if project_map is not None:
+            item["project_name"] = project_map.get(str(run.project_id)) if run.project_id else None
         enriched.append(item)
     return enriched
+
+
+async def fetch_project_name_map(db: AsyncSession, project_ids: list[uuid.UUID]) -> dict[str, str]:
+    if not project_ids:
+        return {}
+    result = await db.execute(
+        select(Project.id, Project.name).where(Project.id.in_(project_ids))
+    )
+    return {str(pid): name for pid, name in result.all()}
 
 
 async def paginate_query(db: AsyncSession, query, page: int, size: int):
@@ -54,13 +69,15 @@ async def fetch_release_map(db: AsyncSession, run_ids: list[uuid.UUID]) -> dict[
 
 async def list_project_runs(
     db: AsyncSession,
-    project_id: str,
+    project_id: str | None,
     page: int,
     size: int,
     status: str | None = None,
     release_id: str | None = None,
 ):
-    query = select(TestRun).where(TestRun.project_id == project_id)
+    query = select(TestRun)
+    if project_id:
+        query = query.where(TestRun.project_id == project_id)
     if status:
         query = query.where(TestRun.status == status)
     if release_id:
@@ -68,7 +85,9 @@ async def list_project_runs(
         query = query.where(TestRun.id.in_(linked_ids_q))
     runs, total, pages = await paginate_query(db, query.order_by(TestRun.created_at.desc()), page, size)
     release_map = await fetch_release_map(db, [run.id for run in runs])
-    return enrich_runs_with_release(runs, release_map), total, pages
+    project_ids = list({run.project_id for run in runs if run.project_id})
+    project_map = await fetch_project_name_map(db, project_ids)
+    return enrich_runs_with_release(runs, release_map, project_map), total, pages
 
 
 async def get_run_with_release(db: AsyncSession, run_id: uuid.UUID):
@@ -76,7 +95,9 @@ async def get_run_with_release(db: AsyncSession, run_id: uuid.UUID):
     if not run:
         return None
     release_map = await fetch_release_map(db, [run_id])
-    return enrich_runs_with_release([run], release_map)[0]
+    project_ids = [run.project_id] if run.project_id else []
+    project_map = await fetch_project_name_map(db, project_ids)
+    return enrich_runs_with_release([run], release_map, project_map)[0]
 
 
 async def list_run_test_cases(
