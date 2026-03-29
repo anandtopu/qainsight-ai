@@ -42,7 +42,7 @@ langchain-openai==0.2.12
 langchain-google-genai==2.0.7
 # Residual risk note: GitHub currently flags langgraph checkpoint loading.
 # Repo evidence only uses StateGraph construction, not checkpoint loading APIs.
-langgraph==1.0.10rc1
+langgraph==1.0.11
 
 # ── Vector Store ─────────────────────────────────────────────
 chromadb==0.5.20
