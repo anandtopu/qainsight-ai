@@ -3,8 +3,8 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-# This workflow integrates njsscan with GitHub's Code Scanning feature
-# njsscan is a static security code scanner that finds insecure code patterns in your Node.js applications
+# This workflow integrates the njsscan security scanner with GitHub's Code Scanning feature
+# The njsscan tool is a static security code scanner that finds insecure code patterns in your Node.js applications
 
 name: njsscan sarif
 
