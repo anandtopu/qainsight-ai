@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3, Bot, Bug, ClipboardList, FlaskConical, Gauge, GitBranch,
-  Layers, LayoutDashboard, MessageSquare, Package, Radio, Search, Settings, ShieldCheck, Shield, TrendingUp,
+  Layers, LayoutDashboard, MessageSquare, Package, Radio, Search, Settings, ShieldCheck, Shield, TrendingUp, UsersRound,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -15,6 +15,7 @@ const NAV = [
   { to: '/releases',  icon: Package,         label: 'Releases'   },
   { to: '/search',    icon: Search,          label: 'Search'     },
   { to: '/projects',       icon: FlaskConical,    label: 'Projects'   },
+  { to: '/users',          icon: UsersRound,      label: 'Users'      },
   { to: '/test-management', icon: ClipboardList,  label: 'Test Cases' },
   { to: '/live',           icon: Radio,           label: 'Live'       },
 ]

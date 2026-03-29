@@ -3,7 +3,7 @@ import logging
 import uuid
 from typing import Callable
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError  # type: ignore
 from sqlalchemy import select
@@ -107,6 +107,58 @@ def require_role(min_role: UserRole) -> Callable:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires at least {min_role.value} role",
+            )
+        return current_user
+
+    return _check
+
+
+def require_project_role(min_role: UserRole) -> Callable:
+    """
+    Dependency that checks project-level role from project_members table,
+    falling back to the user's global role when no project membership exists.
+
+    The project_id is read from path params. If no project_id in path,
+    falls back to global role check.
+    """
+    from app.models.postgres import ProjectMember  # local import to avoid circular
+
+    min_idx = _ROLE_ORDER.index(min_role)
+
+    async def _check(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+    ) -> User:
+        project_id_str = request.path_params.get("project_id")
+        if project_id_str:
+            try:
+                project_uuid = uuid.UUID(project_id_str)
+                result = await db.execute(
+                    select(ProjectMember).where(
+                        ProjectMember.user_id == current_user.id,
+                        ProjectMember.project_id == project_uuid,
+                    )
+                )
+                membership = result.scalar_one_or_none()
+                if membership:
+                    effective_role = membership.role
+                else:
+                    effective_role = current_user.role
+            except ValueError:
+                effective_role = current_user.role
+        else:
+            effective_role = current_user.role
+
+        try:
+            user_idx = _ROLE_ORDER.index(effective_role)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        if user_idx < min_idx:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires at least {min_role.value} role for this project",
             )
         return current_user
 

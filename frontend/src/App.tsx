@@ -26,6 +26,7 @@ const ReleaseGatePage = lazy(() => import('@/pages/ReleaseGatePage'))
 const TestManagementPage = lazy(() => import('@/pages/TestManagementPage'))
 const LiveExecutionPage = lazy(() => import('@/pages/LiveExecutionPage'))
 const ReleasesPage = lazy(() => import('@/pages/ReleasesPage'))
+const UserManagementPage = lazy(() => import('@/pages/UserManagementPage'))
 
 type AppRoute = {
   path: string
@@ -56,6 +57,7 @@ const appRoutes: AppRoute[] = [
   { path: 'test-management', component: TestManagementPage },
   { path: 'live', component: LiveExecutionPage },
   { path: 'releases', component: ReleasesPage },
+  { path: 'users', component: UserManagementPage },
 ]
 
 function RouteFallback() {
