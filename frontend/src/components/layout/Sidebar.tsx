@@ -6,18 +6,21 @@ import {
 import { clsx } from 'clsx'
 
 const NAV = [
-  { to: '/overview',  icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/runs',      icon: GitBranch,       label: 'Test Runs'  },
-  { to: '/coverage',  icon: ShieldCheck,     label: 'Coverage'   },
-  { to: '/failures',  icon: Bug,             label: 'Failures'   },
-  { to: '/trends',    icon: TrendingUp,      label: 'Trends'     },
-  { to: '/defects',   icon: Gauge,           label: 'Defects'    },
-  { to: '/releases',  icon: Package,         label: 'Releases'   },
-  { to: '/search',    icon: Search,          label: 'Search'     },
-  { to: '/projects',       icon: FlaskConical,    label: 'Projects'   },
-  { to: '/users',          icon: UsersRound,      label: 'Users'      },
-  { to: '/test-management', icon: ClipboardList,  label: 'Test Cases' },
-  { to: '/live',           icon: Radio,           label: 'Live'       },
+  { to: '/overview',        icon: LayoutDashboard, label: 'Dashboard'  },
+  { to: '/runs',            icon: GitBranch,       label: 'Test Runs'  },
+  { to: '/coverage',        icon: ShieldCheck,     label: 'Coverage'   },
+  { to: '/failures',        icon: Bug,             label: 'Failures'   },
+  { to: '/trends',          icon: TrendingUp,      label: 'Trends'     },
+  { to: '/defects',         icon: Gauge,           label: 'Defects'    },
+  { to: '/search',          icon: Search,          label: 'Search'     },
+  { to: '/test-management', icon: ClipboardList,   label: 'Test Cases' },
+  { to: '/live',            icon: Radio,           label: 'Live'       },
+]
+
+const MANAGEMENT_NAV = [
+  { to: '/projects',  icon: FlaskConical, label: 'Projects'  },
+  { to: '/releases',  icon: Package,      label: 'Releases'  },
+  { to: '/users',     icon: UsersRound,   label: 'Users'     },
 ]
 
 const AI_NAV = [
@@ -67,6 +70,27 @@ export default function Sidebar() {
           </p>
           <div className="space-y-0.5">
             {AI_NAV.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  clsx('sidebar-link', isActive && 'active')
+                }
+              >
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+
+        {/* Management section */}
+        <div className="mt-4 pt-4 border-t border-slate-800/60">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 px-2 mb-1.5">
+            Management
+          </p>
+          <div className="space-y-0.5">
+            {MANAGEMENT_NAV.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}

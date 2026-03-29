@@ -31,7 +31,7 @@ async def create_api_key(
     """Generate a new scoped API key. The raw key is only shown once."""
     raw_key = f"qai_{secrets.token_urlsafe(32)}"
     key_hash = _hash_key(raw_key)
-    key_hint = raw_key[:10] + "..."
+    key_hint = raw_key[:8] + "..."
 
     expires_at = None
     if payload.expires_days:
