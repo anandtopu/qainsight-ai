@@ -30,7 +30,10 @@ It also ships a first-class **MCP (Model Context Protocol) server** so AI assist
 | **Dashboards** | Pass/fail trends, coverage heatmaps, flaky leaderboard, defect burn-down |
 | **Quality Gates** | Automated GO/NO-GO feedback to Jenkins/GitHub Actions |
 | **Async Processing** | Celery priority queues (`critical` → `ingestion` → `ai_analysis` → `default`) + beat scheduler |
-| **Security** | JWT-based authentication with role-based access control (RBAC) |
+| **User Management** | Role-based team management (VIEWER → TESTER → QA_ENGINEER → QA_LEAD → ADMIN) · admin direct-create with temp password · email invitation flow |
+| **API Key Management** | Scoped personal access tokens (PATs) · SHA-256 hashing · per-user key lifecycle (create / list / revoke) |
+| **Observability** | OpenTelemetry tracing → Jaeger · Prometheus metrics endpoint · Grafana dashboards · deep health checks with dependency status |
+| **Security** | JWT-based authentication with role-based access control (RBAC) · scoped API keys |
 | **MCP Server** | 20 tools · 10 resources · 6 prompt workflows for AI assistant integration |
 | **Search** | Full-text + semantic RAG search across all test history |
 | **Integrations** | Jira, Splunk, Prometheus, GitHub, OpenShift API, Slack, Teams |
@@ -134,7 +137,16 @@ graph TD
         SSE[SSE / WebSocket Streaming]
         Auth[JWT Authentication & Security Middleware]
         Analytics[Analytics Engine]
+        UserMgmt[User Management & API Keys]
         Notify[Notification Services - Slack, Teams, Email]
+    end
+
+    subgraph Observability_Layer [Observability]
+        OTEL[OpenTelemetry Collector]
+        Jaeger[Jaeger Tracing port 16686]
+        Prometheus[Prometheus Metrics port 9090]
+        Grafana[Grafana Dashboards port 3001]
+        HealthCheck[Deep Health Checks /health/full]
     end
 
     subgraph AI_Intelligence_Layer [AI and Intelligence]
@@ -205,6 +217,7 @@ graph TD
     UI -->|Real-Time Data| SSE
     UI -->|Auth & Token| Auth
     UI -->|Trend Data| Analytics
+    UI -->|User & Key Mgmt| UserMgmt
     SDK -->|Test Results| REST
     CICD -->|Trigger/Webhooks| REST
     CICD -->|Quality Gate check via MCP| MCP
@@ -212,6 +225,14 @@ graph TD
     SSE --- FastAPI
     Auth --- FastAPI
     Analytics --- FastAPI
+    UserMgmt --- FastAPI
+
+    %% Observability Connections
+    FastAPI -->|OTEL spans| OTEL
+    OTEL -->|traces| Jaeger
+    FastAPI -->|/metrics scrape| Prometheus
+    Prometheus -->|data source| Grafana
+    FastAPI -->|health status| HealthCheck
 
     %% API to Storage Connections
     FastAPI -->|Structured Metrics| PG
@@ -308,18 +329,15 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
-### 3. Run Migrations
-```bash
-docker compose exec backend alembic upgrade head
-```
-
-### 4. Pull Local LLM (Ollama)
+### 3. Pull Local LLM (Ollama)
 ```bash
 docker compose exec ollama ollama pull qwen2.5:7b
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-### 5. Access Services
+> **Note:** Database migrations run automatically when the backend container starts (`alembic upgrade head` is prepended to the Docker CMD). No manual migration step is needed.
+
+### 4. Access Services
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | Dashboard | http://localhost:3000 | Register via API Docs first |
@@ -327,8 +345,11 @@ docker compose exec ollama ollama pull nomic-embed-text
 | MinIO Console | http://localhost:9001 | admin / password123 |
 | Flower (Celery) | http://localhost:5555 | — |
 | MCP SSE Server | http://localhost:8002/sse | — |
+| Jaeger UI | http://localhost:16686 | — |
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3001 | admin / admin |
 
-### 6. Connect the MCP Server (AI Assistant)
+### 5. Connect the MCP Server (AI Assistant)
 
 Install dependencies and configure your MCP client:
 
@@ -403,15 +424,18 @@ qainsight-ai/
 │   │   │   └── fetch_app_metrics.py     # Prometheus metrics during test window
 │   │   ├── routers/            # API route handlers
 │   │   │   ├── deep_investigation.py    # POST /deep-investigate, GET /clusters, GET /findings
-│   │   │   └── release_readiness.py     # GET /release-readiness, POST /override
+│   │   │   ├── release_readiness.py     # GET /release-readiness, POST /override
+│   │   │   ├── users.py                 # User management: list, invite, admin create
+│   │   │   └── api_keys.py              # Personal access tokens: create, list, revoke
 │   │   ├── models/             # SQLAlchemy ORM + Pydantic schemas
-│   │   │   └── postgres.py              # FailureCluster, DeepFinding, ReleaseDecision, ContractViolation
+│   │   │   └── postgres.py              # FailureCluster, DeepFinding, ReleaseDecision, ContractViolation, ApiKey, UserInvitation
 │   │   ├── db/                 # Database connections
 │   │   └── worker/             # Celery background tasks
 │   │       ├── tasks.py                 # Ingestion + analysis + pipeline tasks
 │   │       └── training_tasks.py        # Export · trigger-check · fine-tune pipeline
-│   ├── migrations/             # Alembic migrations (0001–0006)
+│   ├── migrations/             # Alembic migrations (0001–0012)
 │   ├── tests/                  # pytest test suite
+│   │   └── test_user_management.py  # 16 unit tests for user/API key management
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/                   # React + Vite SPA
@@ -419,13 +443,17 @@ qainsight-ai/
 │   │   ├── pages/              # Route-level page components
 │   │   │   ├── DeepInvestigationPage.tsx  # Cluster list + finding detail panel
 │   │   │   ├── ReleaseGatePage.tsx        # GO/NO_GO banner, risk gauge, override form
-│   │   │   └── AgentStatusPage.tsx        # Live pipeline stage monitor (extended)
+│   │   │   ├── AgentStatusPage.tsx        # Live pipeline stage monitor (extended)
+│   │   │   └── UserManagementPage.tsx     # Users tab (list/invite/add) + API Keys tab
 │   │   ├── components/         # Reusable UI components & ProtectedRoute
 │   │   ├── services/
-│   │   │   └── deepInvestigationService.ts  # Deep investigate + release readiness API calls
+│   │   │   ├── deepInvestigationService.ts  # Deep investigate + release readiness API calls
+│   │   │   └── userManagementService.ts     # Users, invitations, API keys API calls
 │   │   ├── hooks/
 │   │   │   └── useDeepInvestigation.ts      # useFailureClusters, useDeepFindings, useReleaseDecision
 │   │   ├── store/              # Zustand state management (authStore)
+│   │   ├── components/layout/
+│   │   │   └── Sidebar.tsx     # Navigation: Main | AI Agents | Management | Settings
 │   │   └── utils/              # Helpers and formatters
 │   ├── package.json
 │   └── Dockerfile
@@ -598,6 +626,81 @@ GITHUB_REPO=yourorg/yourrepo         # Required when GITHUB_TOKEN is set
 
 ---
 
+## User Management
+
+QA Insight AI includes a full team management system accessible from the **Management → Users** section.
+
+### Roles
+
+| Role | Description |
+|------|-------------|
+| `VIEWER` | Read-only dashboard access |
+| `TESTER` | Execute test runs and view results |
+| `QA_ENGINEER` | Full test management + API key generation |
+| `QA_LEAD` | Quality gate overrides + training data export |
+| `ADMIN` | Full access including user management |
+
+### User Endpoints
+
+| Endpoint | Method | Role | Description |
+|----------|--------|------|-------------|
+| `GET /api/v1/users` | GET | QA_LEAD | List all users |
+| `POST /api/v1/users` | POST | ADMIN | Create a user directly with a one-time temp password |
+| `POST /api/v1/users/invite` | POST | ADMIN | Send an email invitation link |
+| `GET /api/v1/keys` | GET | QA_ENGINEER | List your API keys |
+| `POST /api/v1/keys` | POST | QA_ENGINEER | Generate a new scoped API key |
+| `DELETE /api/v1/keys/{id}` | DELETE | QA_ENGINEER | Revoke an API key |
+
+### Admin Create User Flow
+
+Admins can create users directly without requiring an invitation. The backend generates a one-time temporary password and returns it in the response — it is shown once in the UI and must be shared with the new user. The user should change it on first login.
+
+### API Key Management
+
+API keys are scoped personal access tokens (PATs) with the prefix `qai_`. Keys are stored as SHA-256 hashes — the raw key is only shown once at creation. Keys support:
+- Named labels (e.g., `CI Pipeline`, `Local Dev`)
+- Optional expiry (`expires_days`)
+- Scope tagging (e.g., `test:read`, `run:write`)
+- Soft revocation (keys are deactivated, not deleted)
+
+---
+
+## Observability
+
+QA Insight AI ships a full observability stack out of the box.
+
+### Distributed Tracing (Jaeger)
+
+All API requests are instrumented with **OpenTelemetry** spans. Traces are exported to Jaeger and visible at `http://localhost:16686`. Every test run ingestion, AI pipeline invocation, and database query is tracked end-to-end.
+
+### Metrics (Prometheus + Grafana)
+
+The backend exposes a `/metrics` endpoint (Prometheus format) with:
+- HTTP request counts and latency histograms by route
+- Active WebSocket connection counts
+- AI pipeline invocation counts and durations
+- Celery task queue depth
+
+Grafana dashboards at `http://localhost:3001` (default credentials: `admin / admin`) provide pre-built panels for API health, AI triage throughput, and test run ingestion rates.
+
+### Health Checks
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health` | Basic liveness probe |
+| `GET /health/full` | Deep health: PostgreSQL, MongoDB, Redis, MinIO, Ollama connectivity |
+
+### Configuration
+
+```bash
+OTEL_ENABLED=true                        # Enable OpenTelemetry tracing (default: true)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317  # OTLP gRPC endpoint
+METRICS_ENABLED=true                     # Enable Prometheus /metrics endpoint (default: true)
+PROMETHEUS_URL=http://prometheus:9090    # Prometheus URL for fetch_app_metrics tool
+```
+
+---
+
 ## Iterative Development Plan
 
 | Phase | Focus | Weeks |
@@ -615,6 +718,8 @@ GITHUB_REPO=yourorg/yourrepo         # Required when GITHUB_TOKEN is set
 | **Phase 11** | Redis Streams event pipeline · live test reporting · circuit breaker · DLQ | 18 |
 | **Phase 12** | Continuous fine-tuning pipeline (3 tracks, Jira webhook, model registry) | 19–20 |
 | **Phase 13** | Deep Investigation Agent Network (semantic clustering, release gate, flaky lifecycle, API contract, test health) | 21–22 |
+| **Phase 14** | Observability stack — OpenTelemetry → Jaeger, Prometheus metrics, Grafana dashboards, deep health checks, frontend ErrorBoundary + Web Vitals | 23 |
+| **Phase 15** | User Management — RBAC roles, admin direct-create, email invitations, scoped API keys, user lifecycle | 24 |
 
 ## Continuous Fine-Tuning
 
@@ -838,9 +943,14 @@ Key variables:
 - `GITHUB_TOKEN` — GitHub personal access token (optional); enables `fetch_build_changes` tool
 - `GITHUB_REPO` — `owner/repo` slug (required when `GITHUB_TOKEN` is set)
 
-**Authentication**
+**Authentication & User Management**
 - `JWT_SECRET_KEY` — randomly generated secret for encoding authentication tokens
 - `MCP_USERNAME` / `MCP_PASSWORD` — credentials for the containerised MCP service
+
+**Observability**
+- `OTEL_ENABLED` — `true` (default) to enable OpenTelemetry tracing
+- `OTEL_EXPORTER_OTLP_ENDPOINT` — OTLP gRPC endpoint (default: `http://jaeger:4317`)
+- `METRICS_ENABLED` — `true` (default) to expose Prometheus `/metrics` endpoint
 
 ## License
 
