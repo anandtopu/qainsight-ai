@@ -953,3 +953,87 @@ class SmtpConfigUpdate(BaseModel):
 class SmtpTestResult(BaseModel):
     success: bool
     message: str
+
+
+# ── User Management Schemas ───────────────────────────────────
+
+class UserListResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    username: str
+    full_name: Optional[str] = None
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateUserRoleRequest(BaseModel):
+    role: UserRole
+
+
+class UpdateUserStatusRequest(BaseModel):
+    is_active: bool
+
+
+class InviteUserRequest(BaseModel):
+    email: EmailStr
+    role: UserRole = UserRole.QA_ENGINEER
+
+
+class InviteUserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: UserRole
+    expires_at: datetime
+    invitation_link: str  # frontend URL with token
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Project Member Schemas ────────────────────────────────────
+
+class ProjectMemberResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    project_id: uuid.UUID
+    role: UserRole
+    created_at: datetime
+    # Joined user fields
+    email: str
+    username: str
+    full_name: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AddProjectMemberRequest(BaseModel):
+    user_id: uuid.UUID
+    role: UserRole = UserRole.QA_ENGINEER
+
+
+class UpdateProjectMemberRoleRequest(BaseModel):
+    role: UserRole
+
+
+# ── API Key Schemas ───────────────────────────────────────────
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    scopes: List[str] = Field(default_factory=list)
+    expires_days: Optional[int] = Field(None, ge=1, le=365)
+
+
+class ApiKeyResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    key_hint: str
+    scopes: List[str]
+    is_active: bool
+    expires_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ApiKeyCreatedResponse(ApiKeyResponse):
+    """Returned ONCE at creation — includes the plaintext key."""
+    raw_key: str

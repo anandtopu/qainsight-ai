@@ -11,6 +11,7 @@ from app.routers import (
     agents,
     analyze,
     analytics,
+    api_keys,
     app_settings,
     auth,
     chat,
@@ -29,6 +30,7 @@ from app.routers import (
     search,
     stream,
     test_management,
+    users,
     webhooks,
 )
 from app.routers.health import router as health_router
@@ -62,6 +64,9 @@ PROTECTED_ROUTERS: Sequence[APIRouter] = (
     releases.router,
     reports.router,
     test_management.router,
+    users.router,
+    users.projects_router,
+    api_keys.router,
 )
 
 
