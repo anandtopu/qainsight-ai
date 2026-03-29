@@ -11,10 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, require_role
+from app.core.security import get_password_hash
 from app.db.postgres import get_db
 from app.models.postgres import Project, ProjectMember, User, UserInvitation, UserRole
 from app.models.schemas import (
     AddProjectMemberRequest,
+    AdminCreateUserRequest,
+    AdminCreateUserResponse,
     InviteUserRequest,
     InviteUserResponse,
     ProjectMemberResponse,
@@ -99,6 +102,48 @@ async def update_user_status(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.post("", response_model=AdminCreateUserResponse, status_code=201)
+async def admin_create_user(
+    payload: AdminCreateUserRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Admin creates a user directly with a temporary password. Requires ADMIN."""
+    existing = await db.execute(
+        select(User).where(
+            (User.email == payload.email) | (User.username == payload.username)
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email or username already registered",
+        )
+
+    temp_password = secrets.token_urlsafe(12)
+    user = User(
+        email=payload.email,
+        username=payload.username,
+        full_name=payload.full_name,
+        hashed_password=get_password_hash(temp_password),
+        role=payload.role,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    return AdminCreateUserResponse(
+        id=user.id,
+        email=user.email,
+        username=user.username,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        temp_password=temp_password,
+    )
 
 
 @router.post("/invite", response_model=InviteUserResponse, status_code=201)

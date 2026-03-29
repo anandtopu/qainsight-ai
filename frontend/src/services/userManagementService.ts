@@ -46,6 +46,17 @@ export interface InviteUserResponse {
   invitation_link: string
 }
 
+export interface AdminCreateUserResponse {
+  id: string
+  email: string
+  username: string
+  full_name: string | null
+  role: UserRole
+  is_active: boolean
+  created_at: string
+  temp_password: string
+}
+
 export const userManagementService = {
   // Users
   listUsers: (params?: { is_active?: boolean; role?: UserRole }) =>
@@ -59,6 +70,11 @@ export const userManagementService = {
 
   inviteUser: (email: string, role: UserRole) =>
     api.post<InviteUserResponse>('/api/v1/users/invite', { email, role }).then((r) => r.data),
+
+  createUser: (email: string, username: string, role: UserRole, full_name?: string) =>
+    api
+      .post<AdminCreateUserResponse>('/api/v1/users', { email, username, role, full_name })
+      .then((r) => r.data),
 
   // Project members
   listProjectMembers: (projectId: string) =>

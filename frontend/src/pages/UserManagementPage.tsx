@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Key, Plus, RefreshCw, Shield, Trash2, UserCheck, UserX, Users } from 'lucide-react'
+import { Key, Plus, RefreshCw, Shield, Trash2, UserCheck, UserPlus, UserX, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useUsers, useApiKeys, refreshUsers, refreshApiKeys } from '@/hooks/useUserManagement'
 import { userManagementService, type UserRole } from '@/services/userManagementService'
@@ -64,6 +64,7 @@ export default function UserManagementPage() {
 function UsersTab({ canManageUsers, isAdmin }: { canManageUsers: boolean; isAdmin: boolean }) {
   const { data: users, isLoading } = useUsers()
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [filterRole, setFilterRole] = useState<UserRole | ''>('')
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all')
 
@@ -119,13 +120,23 @@ function UsersTab({ canManageUsers, isAdmin }: { canManageUsers: boolean; isAdmi
             <option value="inactive">Inactive</option>
           </select>
         </div>
-        {canManageUsers && (
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Invite User
-          </button>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddUserModal(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-3 py-1.5 rounded transition-colors"
+            >
+              <UserPlus className="h-4 w-4" /> Add User
+            </button>
+            {canManageUsers && (
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Invite User
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -198,6 +209,133 @@ function UsersTab({ canManageUsers, isAdmin }: { canManageUsers: boolean; isAdmi
       {showInviteModal && (
         <InviteUserModal onClose={() => setShowInviteModal(false)} />
       )}
+      {showAddUserModal && (
+        <AddUserModal onClose={() => setShowAddUserModal(false)} />
+      )}
+    </div>
+  )
+}
+
+// ── Add User Modal (admin direct create) ──────────────────────
+
+function AddUserModal({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [role, setRole] = useState<UserRole>('QA_ENGINEER')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ username: string; temp_password: string } | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await userManagementService.createUser(email, username, role, fullName || undefined)
+      setResult({ username: res.username, temp_password: res.temp_password })
+      refreshUsers()
+      toast.success('User created')
+    } catch {
+      toast.error('Failed to create user')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-slate-800 border border-slate-700 rounded-lg w-full max-w-md p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-slate-100">Add User</h2>
+        {result ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-300">
+              User <strong className="text-slate-100">{result.username}</strong> created. Share the temporary password:
+            </p>
+            <div className="bg-slate-900 border border-amber-700/50 rounded p-3">
+              <p className="text-xs text-slate-400 mb-1">Temporary password (shown once):</p>
+              <code className="text-sm text-amber-300 font-bold break-all">{result.temp_password}</code>
+            </div>
+            <p className="text-xs text-slate-500">The user should change this password after first login.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(result.temp_password)
+                  toast.success('Copied!')
+                }}
+                className="text-sm text-blue-400 hover:text-blue-300 px-3 py-1.5"
+              >
+                Copy Password
+              </button>
+              <button
+                onClick={onClose}
+                className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm px-4 py-2 rounded"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Email address</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="user@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Username</label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="jdoe"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Full name (optional)</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+              >
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-sm text-slate-400 hover:text-slate-200 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded transition-colors"
+              >
+                {loading ? 'Creating…' : 'Create User'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

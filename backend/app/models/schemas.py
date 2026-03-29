@@ -990,6 +990,24 @@ class InviteUserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AdminCreateUserRequest(BaseModel):
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=50)
+    full_name: Optional[str] = None
+    role: UserRole = UserRole.QA_ENGINEER
+
+
+class AdminCreateUserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    username: str
+    full_name: Optional[str] = None
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    temp_password: str  # shown once — admin must share with the user
+
+
 # ── Project Member Schemas ────────────────────────────────────
 
 class ProjectMemberResponse(BaseModel):
