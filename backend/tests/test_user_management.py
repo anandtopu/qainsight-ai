@@ -9,6 +9,7 @@ the full import chain can resolve without Docker.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import sys
 import types
 import uuid
@@ -38,7 +39,7 @@ def _stub_external_modules(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub native deps and app.core/app.db modules for each test in this file."""
     with monkeypatch.context() as m:
         # Native deps: bcrypt
-        if "bcrypt" not in sys.modules:
+        if importlib.util.find_spec("bcrypt") is None:
             m.setitem(
                 sys.modules,
                 "bcrypt",
@@ -51,7 +52,7 @@ def _stub_external_modules(monkeypatch: pytest.MonkeyPatch) -> None:
             )
 
         # Native deps: jose
-        if "jose" not in sys.modules:
+        if importlib.util.find_spec("jose") is None:
             jose_jwt_stub = _make_stub(
                 "jose.jwt",
                 encode=MagicMock(return_value="tok"),
