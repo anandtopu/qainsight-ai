@@ -65,75 +65,71 @@ def _stub_external_modules(monkeypatch: pytest.MonkeyPatch) -> None:
                 _make_stub("jose", jwt=jose_jwt_stub, JWTError=Exception),
             )
 
-        # Stub only the app.core modules that pull in bcrypt/jose
-        if "app.core.security" not in sys.modules:
-            m.setitem(
-                sys.modules,
+        # Always stub app.core modules that pull in bcrypt/jose — monkeypatch
+        # restores sys.modules after each test, so these never leak.
+        m.setitem(
+            sys.modules,
+            "app.core.security",
+            _make_stub(
                 "app.core.security",
-                _make_stub(
-                    "app.core.security",
-                    verify_password=MagicMock(return_value=True),
-                    get_password_hash=MagicMock(return_value="hashed_pw"),
-                    create_access_token=MagicMock(return_value="access_token"),
-                    create_refresh_token=MagicMock(return_value="refresh_token"),
-                    decode_token=MagicMock(
-                        return_value={"sub": str(uuid.uuid4()), "type": "access"}
-                    ),
+                verify_password=MagicMock(return_value=True),
+                get_password_hash=MagicMock(return_value="hashed_pw"),
+                create_access_token=MagicMock(return_value="access_token"),
+                create_refresh_token=MagicMock(return_value="refresh_token"),
+                decode_token=MagicMock(
+                    return_value={"sub": str(uuid.uuid4()), "type": "access"}
                 ),
-            )
+            ),
+        )
 
-        if "app.core.deps" not in sys.modules:
-            m.setitem(
-                sys.modules,
+        m.setitem(
+            sys.modules,
+            "app.core.deps",
+            _make_stub(
                 "app.core.deps",
-                _make_stub(
-                    "app.core.deps",
-                    require_role=MagicMock(return_value=MagicMock()),
-                    get_current_active_user=MagicMock(),
-                    verify_webhook_secret=MagicMock(),
-                    require_project_role=MagicMock(return_value=MagicMock()),
-                ),
-            )
+                require_role=MagicMock(return_value=MagicMock()),
+                get_current_active_user=MagicMock(),
+                verify_webhook_secret=MagicMock(),
+                require_project_role=MagicMock(return_value=MagicMock()),
+            ),
+        )
 
-        # Stub DB connection factories (no real DB in unit tests)
-        if "app.db.postgres" not in sys.modules:
-            from sqlalchemy.orm import DeclarativeBase
+        # Always stub DB connection factories (no real DB in unit tests)
+        from sqlalchemy.orm import DeclarativeBase
 
-            class _Base(DeclarativeBase):
-                pass
+        class _Base(DeclarativeBase):
+            pass
 
-            m.setitem(
-                sys.modules,
+        m.setitem(
+            sys.modules,
+            "app.db.postgres",
+            _make_stub(
                 "app.db.postgres",
-                _make_stub(
-                    "app.db.postgres",
-                    get_db=MagicMock(),
-                    AsyncSession=MagicMock(),
-                    Base=_Base,
-                ),
-            )
+                get_db=MagicMock(),
+                AsyncSession=MagicMock(),
+                Base=_Base,
+            ),
+        )
 
-        if "app.db.mongo" not in sys.modules:
-            m.setitem(
-                sys.modules,
+        m.setitem(
+            sys.modules,
+            "app.db.mongo",
+            _make_stub(
                 "app.db.mongo",
-                _make_stub(
-                    "app.db.mongo",
-                    get_mongo_db=MagicMock(),
-                    close_mongo=MagicMock(),
-                ),
-            )
+                get_mongo_db=MagicMock(),
+                close_mongo=MagicMock(),
+            ),
+        )
 
-        if "app.db.redis_client" not in sys.modules:
-            m.setitem(
-                sys.modules,
+        m.setitem(
+            sys.modules,
+            "app.db.redis_client",
+            _make_stub(
                 "app.db.redis_client",
-                _make_stub(
-                    "app.db.redis_client",
-                    get_redis=MagicMock(),
-                    close_redis=MagicMock(),
-                ),
-            )
+                get_redis=MagicMock(),
+                close_redis=MagicMock(),
+            ),
+        )
 
         # Yield control to the test; monkeypatch will restore sys.modules after.
         yield
