@@ -4,7 +4,7 @@
 # documentation.
 
 # This workflow integrates njsscan with GitHub's Code Scanning feature
-# nodejsscan is a static security code scanner that finds insecure code patterns in your Node.js applications
+# njsscan is a static security code scanner that finds insecure code patterns in your Node.js applications
 
 name: njsscan sarif
 
@@ -31,7 +31,7 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
-      - name: nodejsscan scan
+      - name: njsscan scan
         id: njsscan
         uses: ajinabraham/njsscan-action@7237412fdd36af517e2745077cedbf9d6900d711
         with:
