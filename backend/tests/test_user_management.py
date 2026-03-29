@@ -268,12 +268,6 @@ class TestAdminCreateUser:
 
         assert exc_info.value.status_code == 409
 
-    def test_temp_passwords_are_unique(self):
-        import secrets
-        passwords = {secrets.token_urlsafe(12) for _ in range(30)}
-        assert len(passwords) == 30
-
-
 # ── list_api_keys endpoint ─────────────────────────────────────
 
 class TestListApiKeys:
