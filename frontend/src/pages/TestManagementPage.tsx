@@ -902,10 +902,13 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
       const response = await api.get(url, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
+      const objectUrl = URL.createObjectURL(blob)
+      a.href = objectUrl
       a.download = 'test-cases.xlsx'
       a.click()
-      URL.revokeObjectURL(a.href)
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl)
+      }, 1000)
     } catch {
       toast.error('Export failed — please try again')
     }
