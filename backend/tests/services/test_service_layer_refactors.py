@@ -90,9 +90,10 @@ def _fake_run(run_id: uuid.UUID, status: str = "passed"):
     )
 
 
-def _fake_release(release_id: uuid.UUID, phases=None):
+def _fake_release(release_id: uuid.UUID, phases=None, project_id: uuid.UUID | None = None):
     columns = [
         SimpleNamespace(name="id"),
+        SimpleNamespace(name="project_id"),
         SimpleNamespace(name="name"),
         SimpleNamespace(name="status"),
         SimpleNamespace(name="created_at"),
@@ -100,6 +101,7 @@ def _fake_release(release_id: uuid.UUID, phases=None):
     return SimpleNamespace(
         __table__=SimpleNamespace(columns=columns),
         id=release_id,
+        project_id=project_id or uuid.uuid4(),
         name="Release 1",
         status="planning",
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
