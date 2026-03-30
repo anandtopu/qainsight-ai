@@ -1186,7 +1186,7 @@ function LinkSuiteModal({ planId, projectId, onClose, onLinked }: LinkSuiteModal
     try {
       // Get all managed test cases from this suite
       const cases = await testManagementService.getSuiteCases(selectedSuite, projectId)
-      const managedCases = cases.filter(c => (c as unknown as { source?: string }).source === 'manual' || !('source' in c))
+      const managedCases = cases.filter(c => c.source === 'manual')
       if (managedCases.length === 0) {
         toast.error('No managed test cases found in this suite to link')
         return
