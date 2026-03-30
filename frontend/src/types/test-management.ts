@@ -47,6 +47,7 @@ export interface ManagedTestCase {
   priority: string
   severity: string
   feature_area?: string
+  suite_name?: string
   tags?: string[]
   status: string
   version: number

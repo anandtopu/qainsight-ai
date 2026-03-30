@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,8 @@ from app.models.schemas import (
     UpdateUserStatusRequest,
     UserListResponse,
 )
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["User Management"])
 projects_router = APIRouter(prefix="/api/v1/projects", tags=["User Management"])
@@ -123,6 +126,7 @@ async def admin_create_user(
         )
 
     temp_password = secrets.token_urlsafe(12)
+    logger.info("admin_creating_user", email=payload.email, role=str(payload.role), by=str(current_user.id))
     user = User(
         email=payload.email,
         username=payload.username,
@@ -267,6 +271,7 @@ async def add_project_member(
             detail="User is already a member of this project",
         )
 
+    logger.info("adding_project_member", project_id=str(project_id), user_id=str(payload.user_id), role=str(payload.role), by=str(current_user.id))
     member = ProjectMember(user_id=payload.user_id, project_id=project_id, role=payload.role)
     db.add(member)
     await db.commit()

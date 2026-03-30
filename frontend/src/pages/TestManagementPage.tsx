@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   ClipboardList, Plus, Sparkles, ChevronDown, ChevronRight,
   Star, Clock, User, Tag, CheckCircle2, XCircle, AlertCircle,
   RotateCcw, Eye, MessageSquare, History, Shield, FileText,
   ChevronUp, Trash2, PlayCircle, BookOpen, BarChart2,
+  Download, FileSpreadsheet, Layers,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import toast from 'react-hot-toast'
@@ -13,6 +14,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import Pagination from '@/components/ui/Pagination'
+import { api } from '@/services/api'
 import { useProjectStore } from '@/store/projectStore'
 import {
   useTestCases, useTestPlans, useStrategies, useAuditLog,
@@ -37,7 +39,7 @@ import type {
 
 // ─── Constants / helpers ─────────────────────────────────────────────────────
 
-const TABS = ['Test Cases', 'Test Plans', 'Strategy', 'Reviews', 'Audit Log'] as const
+const TABS = ['Test Cases', 'Test Suites', 'Test Plans', 'Strategy', 'Reviews', 'Audit Log'] as const
 type Tab = typeof TABS[number]
 
 const STATUS_COLORS: Record<string, string> = {
@@ -119,6 +121,7 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
   const [priority, setPriority] = useState('medium')
   const [assigneeId, setAssigneeId] = useState<string>('')
   const [featureArea, setFeatureArea] = useState('')
+  const [suiteName, setSuiteName] = useState('')
   const [objective, setObjective] = useState('')
   const [preconditions, setPreconditions] = useState('')
   const [steps, setSteps] = useState<TestStep[]>([{ step_number: 1, action: '', expected_result: '' }])
@@ -144,6 +147,7 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
         priority,
         assignee_id: assigneeId || undefined,
         feature_area: featureArea || undefined,
+        suite_name: suiteName || undefined,
         objective: objective || undefined,
         preconditions: preconditions || undefined,
         steps: steps.filter(s => s.action.trim()),
@@ -200,9 +204,15 @@ function CreateCaseModal({ projectId, onClose, onCreated }: CreateCaseModalProps
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Feature Area</label>
-          <input className="input w-full" value={featureArea} onChange={e => setFeatureArea(e.target.value)} placeholder="e.g. Authentication, Checkout" />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Feature Area</label>
+            <input className="input w-full" value={featureArea} onChange={e => setFeatureArea(e.target.value)} placeholder="e.g. Authentication, Checkout" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Suite Name</label>
+            <input className="input w-full" value={suiteName} onChange={e => setSuiteName(e.target.value)} placeholder="e.g. LoginSuite, CheckoutTests" />
+          </div>
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Objective</label>
@@ -886,6 +896,24 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
 
   const cases = data?.items ?? []
 
+  async function handleExportExcel() {
+    try {
+      const url = testManagementService.exportCasesExcelUrl(projectId, params)
+      const response = await api.get(url, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const a = document.createElement('a')
+      const objectUrl = URL.createObjectURL(blob)
+      a.href = objectUrl
+      a.download = 'test-cases.xlsx'
+      a.click()
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl)
+      }, 1000)
+    } catch {
+      toast.error('Export failed — please try again')
+    }
+  }
+
   return (
     <>
       <div className="space-y-4">
@@ -915,6 +943,13 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
+          <button
+            onClick={handleExportExcel}
+            className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Export Excel
+          </button>
           {projectId && (
             <>
               <button onClick={() => setShowAiGen(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
@@ -1022,11 +1057,12 @@ function TestCasesTab({ projectId }: TestCasesTabProps) {
 
 // ─── Plan Items Expanded View ─────────────────────────────────────────────────
 
-interface PlanItemsViewProps { planId: string; onMutate: () => void }
+interface PlanItemsViewProps { planId: string; onMutate: () => void; projectId?: string | null }
 
-function PlanItemsView({ planId, onMutate }: PlanItemsViewProps) {
+function PlanItemsView({ planId, onMutate, projectId = null }: PlanItemsViewProps) {
   const { data: items, isLoading, mutate } = usePlanItems(planId)
   const [executing, setExecuting] = useState<string | null>(null)
+  const [showLinkSuite, setShowLinkSuite] = useState(false)
 
   const handleExecute = async (itemId: string, execStatus: string) => {
     setExecuting(itemId)
@@ -1051,9 +1087,28 @@ function PlanItemsView({ planId, onMutate }: PlanItemsViewProps) {
   }
 
   if (isLoading) return <div className="flex justify-center py-4"><LoadingSpinner size="sm" /></div>
-  if (!items || items.length === 0) return <p className="text-sm text-slate-500 text-center py-4">No test cases in this plan yet</p>
 
   return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <button
+          onClick={() => setShowLinkSuite(true)}
+          className="btn-secondary flex items-center gap-1.5 text-xs"
+        >
+          <Layers className="h-3.5 w-3.5" /> Link Suite
+        </button>
+      </div>
+      {showLinkSuite && (
+        <LinkSuiteModal
+          planId={planId}
+          projectId={projectId}
+          onClose={() => setShowLinkSuite(false)}
+          onLinked={() => { mutate(); onMutate(); setShowLinkSuite(false) }}
+        />
+      )}
+      {(!items || items.length === 0) ? (
+        <p className="text-sm text-slate-500 text-center py-4">No test cases in this plan yet. Link a suite or add test cases.</p>
+      ) : (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -1097,6 +1152,133 @@ function PlanItemsView({ planId, onMutate }: PlanItemsViewProps) {
           ))}
         </tbody>
       </table>
+    </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Link Suite Modal ─────────────────────────────────────────────────────────
+
+interface LinkSuiteModalProps {
+  planId: string
+  projectId: string | null
+  onClose: () => void
+  onLinked: () => void
+}
+
+function LinkSuiteModal({ planId, projectId, onClose, onLinked }: LinkSuiteModalProps) {
+  const [suites, setSuites] = useState<Array<{ suite_name: string; test_count: number }>>([])
+  const [selectedSuite, setSelectedSuite] = useState('')
+  const [linking, setLinking] = useState(false)
+  const [loadingSuites, setLoadingSuites] = useState(true)
+
+  useEffect(() => {
+    setLoadingSuites(true)
+    setSelectedSuite('')
+    setSuites([])
+    testManagementService.listSuites(projectId)
+      .then(setSuites)
+      .catch(() => toast.error('Failed to load suites'))
+      .finally(() => setLoadingSuites(false))
+  }, [projectId])
+
+  async function handleLink() {
+    if (!selectedSuite) { toast.error('Select a suite'); return }
+    setLinking(true)
+    try {
+      // Get all managed test cases from this suite
+      const cases = await testManagementService.getSuiteCases(selectedSuite, projectId)
+      const managedCases = cases.filter(c => c.source === 'manual')
+      if (managedCases.length === 0) {
+        toast.error('No managed test cases found in this suite to link')
+        return
+      }
+      let added = 0
+      let duplicates = 0
+      const failures: string[] = []
+      const batchSize = 10
+
+      for (let i = 0; i < managedCases.length; i += batchSize) {
+        const batch = managedCases.slice(i, i + batchSize)
+        const results = await Promise.allSettled(
+          batch.map(tc =>
+            testManagementService.addPlanItem(planId, { test_case_id: tc.id }),
+          ),
+        )
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            added++
+          } else {
+            const err: any = result.reason
+            const status = err?.response?.status
+            const message = err?.message || 'Unknown error'
+
+            if (status === 409) {
+              // treat conflict as a duplicate link
+              duplicates++
+            } else {
+              failures.push(message)
+            }
+          }
+        }
+      }
+
+      let successMessage = `Linked ${added} test case${added !== 1 ? 's' : ''} from "${selectedSuite}"`
+      if (duplicates > 0) {
+        successMessage += ` (${duplicates} already linked and skipped)`
+      }
+      toast.success(successMessage)
+
+      if (failures.length > 0) {
+        toast.error(
+          `Failed to link ${failures.length} test case${failures.length !== 1 ? 's' : ''}. Some items may require attention.`,
+        )
+      }
+      onLinked()
+    } catch {
+      toast.error('Failed to link suite')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <h2 className="text-base font-semibold text-slate-100 mb-1">Link Test Suite to Plan</h2>
+        <p className="text-xs text-slate-400 mb-4">Add all managed test cases from a suite to this test plan.</p>
+        {loadingSuites ? (
+          <div className="flex justify-center py-4"><LoadingSpinner size="md" /></div>
+        ) : (
+          <div className="space-y-3">
+            <select
+              value={selectedSuite}
+              onChange={e => setSelectedSuite(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">— Select a suite —</option>
+              {suites.map(s => (
+                <option key={s.suite_name} value={s.suite_name}>
+                  {s.suite_name} ({s.test_count} cases)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Cancel</button>
+          <button
+            onClick={handleLink}
+            disabled={linking || !selectedSuite}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2"
+          >
+            {linking ? <LoadingSpinner size="sm" /> : <Layers className="h-4 w-4" />}
+            {linking ? 'Linking…' : 'Link Suite'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1242,8 +1424,24 @@ function TestPlansTab({ projectId }: TestPlansTabProps) {
                   </div>
                 </div>
                 {expandedPlan === plan.id && (
-                  <div className="border-t border-slate-700/50 p-4">
-                    <PlanItemsView planId={plan.id} onMutate={mutate} />
+                  <div className="border-t border-slate-700/50 p-4 space-y-3">
+                    <div className="flex items-center gap-2 justify-end">
+                      <a
+                        href={testManagementService.exportPlanWordUrl(plan.id)}
+                        className="btn-secondary flex items-center gap-1.5 text-xs whitespace-nowrap"
+                        title="Export plan to Word"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Word
+                      </a>
+                      <a
+                        href={testManagementService.exportPlanPdfUrl(plan.id)}
+                        className="btn-secondary flex items-center gap-1.5 text-xs whitespace-nowrap"
+                        title="Export plan to PDF"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> PDF
+                      </a>
+                    </div>
+                    <PlanItemsView planId={plan.id} onMutate={mutate} projectId={projectId} />
                   </div>
                 )}
               </div>
@@ -1362,6 +1560,22 @@ function StrategyTab({ projectId }: StrategyTabProps) {
                     )}
                     <span className="text-xs text-slate-500">Created {fmtDate(strategy.created_at)}</span>
                   </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={testManagementService.exportStrategyWordUrl(strategy.id)}
+                    className="btn-secondary flex items-center gap-1.5 text-xs whitespace-nowrap"
+                    title="Export strategy to Word"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Word
+                  </a>
+                  <a
+                    href={testManagementService.exportStrategyPdfUrl(strategy.id)}
+                    className="btn-secondary flex items-center gap-1.5 text-xs whitespace-nowrap"
+                    title="Export strategy to PDF"
+                  >
+                    <FileText className="h-3.5 w-3.5" /> PDF
+                  </a>
                 </div>
               </div>
             </div>
@@ -1487,6 +1701,181 @@ function StrategyTab({ projectId }: StrategyTabProps) {
         />
       )}
     </>
+  )
+}
+
+// ─── Tab: Test Suites ─────────────────────────────────────────────────────────
+
+interface SuiteItem {
+  suite_name: string
+  test_count: number
+  passed_count: number
+  failed_count: number
+  last_run_at: string | null
+  pass_rate: number | null
+}
+
+interface SuiteCase {
+  id: string
+  test_name: string
+  suite_name: string
+  status: string
+  duration_ms: number | null
+  class_name: string | null
+  package_name: string | null
+  created_at: string | null
+}
+
+interface TestSuitesTabProps { projectId: string | null }
+
+function TestSuitesTab({ projectId }: TestSuitesTabProps) {
+  const [suites, setSuites] = useState<SuiteItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [expandedSuite, setExpandedSuite] = useState<string | null>(null)
+  const [suiteCases, setSuiteCases] = useState<Record<string, SuiteCase[]>>({})
+  const [loadingCases, setLoadingCases] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    setSuiteCases({})
+    setExpandedSuite(null)
+    testManagementService.listSuites(projectId)
+      .then(setSuites)
+      .catch(() => toast.error('Failed to load test suites'))
+      .finally(() => setLoading(false))
+  }, [projectId])
+
+  async function handleExpandSuite(suiteName: string) {
+    if (expandedSuite === suiteName) {
+      setExpandedSuite(null)
+      return
+    }
+    setExpandedSuite(suiteName)
+    if (suiteCases[suiteName]) return
+    setLoadingCases(suiteName)
+    try {
+      const cases = await testManagementService.getSuiteCases(suiteName, projectId)
+      setSuiteCases(prev => ({ ...prev, [suiteName]: cases }))
+    } catch {
+      toast.error('Failed to load suite cases')
+    } finally {
+      setLoadingCases(null)
+    }
+  }
+
+  const CASE_STATUS_COLORS: Record<string, string> = {
+    // lowercase variants
+    passed:  'text-green-400',
+    failed:  'text-red-400',
+    error:   'text-red-400',
+    broken:  'text-red-400',
+    skipped: 'text-slate-400',
+    pending: 'text-amber-400',
+    // uppercase variants as returned by the backend
+    PASSED:  'text-green-400',
+    FAILED:  'text-red-400',
+    ERROR:   'text-red-400',
+    BROKEN:  'text-red-400',
+    SKIPPED: 'text-slate-400',
+    PENDING: 'text-amber-400',
+  }
+
+  if (loading) return <div className="flex items-center justify-center h-48"><LoadingSpinner size="lg" /></div>
+
+  if (suites.length === 0) {
+    return (
+      <EmptyState
+        icon={<Layers className="h-10 w-10" />}
+        title="No test suites found"
+        description={projectId ? 'Test suites appear here when automation runs ingest test results grouped by suite, or when manual test cases are assigned a suite name.' : 'No test suites found across all projects'}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {suites.map(suite => (
+        <div key={suite.suite_name} className="card p-0">
+          <div
+            className="p-4 cursor-pointer hover:bg-slate-800/50 transition-colors rounded-xl"
+            onClick={() => handleExpandSuite(suite.suite_name)}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-1">
+                  <Layers className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                  <h3 className="text-sm font-semibold text-slate-100 truncate">{suite.suite_name}</h3>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-slate-500">
+                  <span>{suite.test_count} tests</span>
+                  <span className="text-green-400">{suite.passed_count} passed</span>
+                  <span className="text-red-400">{suite.failed_count} failed</span>
+                  {suite.pass_rate != null && (
+                    <span className={suite.pass_rate >= 80 ? 'text-green-400 font-medium' : suite.pass_rate >= 60 ? 'text-amber-400 font-medium' : 'text-red-400 font-medium'}>
+                      {suite.pass_rate.toFixed(1)}% pass rate
+                    </span>
+                  )}
+                  {suite.last_run_at && <span className="ml-auto">Last run: {fmtDate(suite.last_run_at)}</span>}
+                </div>
+              </div>
+              {expandedSuite === suite.suite_name
+                ? <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                : <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+              }
+            </div>
+          </div>
+          {expandedSuite === suite.suite_name && (
+            <div className="border-t border-slate-700/50">
+              {loadingCases === suite.suite_name ? (
+                <div className="flex items-center justify-center py-8"><LoadingSpinner size="md" /></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-800/60">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Name</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Class / Package</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {(suiteCases[suite.suite_name] ?? []).map(tc => (
+                        <tr key={tc.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-2.5 text-slate-200 font-medium text-xs truncate max-w-xs">{tc.test_name}</td>
+                          <td className="px-4 py-2.5 text-slate-400 text-xs">
+                            {tc.class_name && <span>{tc.class_name}</span>}
+                            {tc.package_name && <span className="text-slate-600"> · {tc.package_name}</span>}
+                            {!tc.class_name && !tc.package_name && <span className="text-slate-600">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className={clsx('text-xs font-medium capitalize', CASE_STATUS_COLORS[tc.status] ?? 'text-slate-400')}>
+                              {tc.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs text-slate-400 tabular-nums">
+                            {tc.duration_ms != null ? `${(tc.duration_ms / 1000).toFixed(2)}s` : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs text-slate-500">
+                            {tc.created_at ? fmtDate(tc.created_at) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                      {(suiteCases[suite.suite_name] ?? []).length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-xs text-slate-500">No test cases in this suite</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -1746,11 +2135,12 @@ export default function TestManagementPage() {
 
       {/* Tab content */}
       <div>
-        {activeTab === 'Test Cases'  && <TestCasesTab projectId={tabProjectId} />}
-        {activeTab === 'Test Plans'  && <TestPlansTab projectId={tabProjectId} />}
-        {activeTab === 'Strategy'    && <StrategyTab projectId={tabProjectId} />}
-        {activeTab === 'Reviews'     && <ReviewsTab projectId={tabProjectId} />}
-        {activeTab === 'Audit Log'   && <AuditTab projectId={tabProjectId} />}
+        {activeTab === 'Test Cases'   && <TestCasesTab projectId={tabProjectId} />}
+        {activeTab === 'Test Suites'  && <TestSuitesTab projectId={tabProjectId} />}
+        {activeTab === 'Test Plans'   && <TestPlansTab projectId={tabProjectId} />}
+        {activeTab === 'Strategy'     && <StrategyTab projectId={tabProjectId} />}
+        {activeTab === 'Reviews'      && <ReviewsTab projectId={tabProjectId} />}
+        {activeTab === 'Audit Log'    && <AuditTab projectId={tabProjectId} />}
       </div>
     </div>
   )

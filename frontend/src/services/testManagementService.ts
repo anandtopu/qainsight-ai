@@ -115,6 +115,35 @@ export const testManagementService = {
   // Audit Log
   getAuditLog: (projectId: string | null, params?: { entity_type?: string; action?: string; page?: number; size?: number }): Promise<PaginatedResponse<AuditLogEntry>> =>
     getData('/api/v1/test-management/audit', { params: { ...(projectId ? { project_id: projectId } : {}), ...params } }),
+
+  // Export
+  exportCasesExcelUrl: (projectId: string | null, params?: Record<string, unknown>): string => {
+    const query = new URLSearchParams()
+    if (projectId) query.set('project_id', projectId)
+    if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') query.set(k, String(v)) })
+    const queryString = query.toString()
+    const basePath = '/api/v1/test-management/cases/export/excel'
+    return queryString ? `${basePath}?${queryString}` : basePath
+  },
+
+  exportPlanWordUrl: (planId: string): string =>
+    `/api/v1/test-management/plans/${planId}/export/word`,
+
+  exportPlanPdfUrl: (planId: string): string =>
+    `/api/v1/test-management/plans/${planId}/export/pdf`,
+
+  exportStrategyWordUrl: (strategyId: string): string =>
+    `/api/v1/test-management/strategies/${strategyId}/export/word`,
+
+  exportStrategyPdfUrl: (strategyId: string): string =>
+    `/api/v1/test-management/strategies/${strategyId}/export/pdf`,
+
+  // Test Suites
+  listSuites: (projectId: string | null): Promise<Array<{suite_name: string; test_count: number; passed_count: number; failed_count: number; last_run_at: string | null; pass_rate: number | null}>> =>
+    getData('/api/v1/test-management/suites', { params: projectId ? { project_id: projectId } : {} }),
+
+  getSuiteCases: (suiteName: string, projectId: string | null): Promise<Array<{id: string; test_name: string; suite_name: string; status: string; source: 'automation' | 'manual'; duration_ms: number | null; class_name: string | null; package_name: string | null; created_at: string | null}>> =>
+    getData(`/api/v1/test-management/suites/${encodeURIComponent(suiteName)}/cases`, { params: projectId ? { project_id: projectId } : {} }),
 }
 export interface UserSummary {
   id: string
