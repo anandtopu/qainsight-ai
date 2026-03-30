@@ -25,8 +25,12 @@ export function ProjectMembersTab({ isAdmin, canManageUsers }: { isAdmin: boolea
   const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
-    projectsService.list().then(setProjects).catch(() => {})
-    userManagementService.listUsers().then(setAllUsers).catch(() => {})
+    projectsService.list()
+      .then(setProjects)
+      .catch(() => toast.error('Failed to load projects'))
+    userManagementService.listUsers()
+      .then(setAllUsers)
+      .catch(() => toast.error('Failed to load users'))
   }, [])
 
   useEffect(() => {
