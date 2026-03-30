@@ -142,7 +142,7 @@ export const testManagementService = {
   listSuites: (projectId: string | null): Promise<Array<{suite_name: string; test_count: number; passed_count: number; failed_count: number; last_run_at: string | null; pass_rate: number | null}>> =>
     getData('/api/v1/test-management/suites', { params: projectId ? { project_id: projectId } : {} }),
 
-  getSuiteCases: (suiteName: string, projectId: string | null): Promise<Array<{id: string; test_name: string; suite_name: string; status: string; duration_ms: number | null; class_name: string | null; package_name: string | null; created_at: string | null}>> =>
+  getSuiteCases: (suiteName: string, projectId: string | null): Promise<Array<{id: string; test_name: string; suite_name: string; status: string; source: 'automation' | 'manual'; duration_ms: number | null; class_name: string | null; package_name: string | null; created_at: string | null}>> =>
     getData(`/api/v1/test-management/suites/${encodeURIComponent(suiteName)}/cases`, { params: projectId ? { project_id: projectId } : {} }),
 }
 export interface UserSummary {
