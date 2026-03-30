@@ -1189,15 +1189,47 @@ function LinkSuiteModal({ planId, projectId, onClose, onLinked }: LinkSuiteModal
         return
       }
       let added = 0
-      for (const tc of managedCases) {
-        try {
-          await testManagementService.addPlanItem(planId, { test_case_id: tc.id })
-          added++
-        } catch {
-          // skip duplicates
+      let duplicates = 0
+      const failures: string[] = []
+      const batchSize = 10
+
+      for (let i = 0; i < managedCases.length; i += batchSize) {
+        const batch = managedCases.slice(i, i + batchSize)
+        const results = await Promise.allSettled(
+          batch.map(tc =>
+            testManagementService.addPlanItem(planId, { test_case_id: tc.id }),
+          ),
+        )
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            added++
+          } else {
+            const err: any = result.reason
+            const status = err?.response?.status
+            const message = err?.message || 'Unknown error'
+
+            if (status === 409) {
+              // treat conflict as a duplicate link
+              duplicates++
+            } else {
+              failures.push(message)
+            }
+          }
         }
       }
-      toast.success(`Linked ${added} test case${added !== 1 ? 's' : ''} from "${selectedSuite}"`)
+
+      let successMessage = `Linked ${added} test case${added !== 1 ? 's' : ''} from "${selectedSuite}"`
+      if (duplicates > 0) {
+        successMessage += ` (${duplicates} already linked and skipped)`
+      }
+      toast.success(successMessage)
+
+      if (failures.length > 0) {
+        toast.error(
+          `Failed to link ${failures.length} test case${failures.length !== 1 ? 's' : ''}. Some items may require attention.`,
+        )
+      }
       onLinked()
     } catch {
       toast.error('Failed to link suite')
