@@ -401,7 +401,9 @@ export default function TrendsPage() {
         yOffset += pdfHeight
       }
       const projectLabel = isAllProjects ? 'All-Projects' : (project?.name ?? 'QA')
-      pdf.save(`QA-Insight-Trends-${projectLabel}-${days}d.pdf`)
+      const safeProjectLabel =
+        projectLabel.replace(/[^a-z0-9\-]+/gi, '_').replace(/^_+|_+$/g, '') || 'Project'
+      pdf.save(`QA-Insight-Trends-${safeProjectLabel}-${days}d.pdf`)
       toast.success('PDF exported successfully')
     } catch (err) {
       console.error('PDF export failed', err)
