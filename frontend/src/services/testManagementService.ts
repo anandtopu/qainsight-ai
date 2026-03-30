@@ -121,7 +121,9 @@ export const testManagementService = {
     const query = new URLSearchParams()
     if (projectId) query.set('project_id', projectId)
     if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') query.set(k, String(v)) })
-    return `/api/v1/test-management/cases/export/excel?${query.toString()}`
+    const queryString = query.toString()
+    const basePath = '/api/v1/test-management/cases/export/excel'
+    return queryString ? `${basePath}?${queryString}` : basePath
   },
 
   exportPlanWordUrl: (planId: string): string =>
