@@ -81,7 +81,7 @@ async def export_test_cases_excel(
 
     headers = [
         "Title", "Status", "Type", "Priority", "Severity",
-        "Feature Area", "Objective", "Preconditions", "Expected Result",
+        "Feature Area", "Objective", "Preconditions", "Steps", "Expected Result",
         "Automated", "Automation Status", "AI Generated", "AI Quality Score",
         "Last Execution Status", "Tags", "Version", "Created At",
     ]
@@ -111,15 +111,16 @@ async def export_test_cases_excel(
         ws.cell(row=row_idx, column=6, value=tc.feature_area or "")
         ws.cell(row=row_idx, column=7, value=tc.objective or "")
         ws.cell(row=row_idx, column=8, value=tc.preconditions or "")
-        ws.cell(row=row_idx, column=9, value=tc.expected_result or "")
-        ws.cell(row=row_idx, column=10, value="Yes" if tc.is_automated else "No")
-        ws.cell(row=row_idx, column=11, value=tc.automation_status)
-        ws.cell(row=row_idx, column=12, value="Yes" if tc.ai_generated else "No")
-        ws.cell(row=row_idx, column=13, value=tc.ai_quality_score)
-        ws.cell(row=row_idx, column=14, value=tc.last_execution_status or "")
-        ws.cell(row=row_idx, column=15, value=tags_text)
-        ws.cell(row=row_idx, column=16, value=tc.version)
-        ws.cell(row=row_idx, column=17, value=tc.created_at.strftime("%Y-%m-%d") if tc.created_at else "")
+        ws.cell(row=row_idx, column=9, value=steps_text)
+        ws.cell(row=row_idx, column=10, value=tc.expected_result or "")
+        ws.cell(row=row_idx, column=11, value="Yes" if tc.is_automated else "No")
+        ws.cell(row=row_idx, column=12, value=tc.automation_status)
+        ws.cell(row=row_idx, column=13, value="Yes" if tc.ai_generated else "No")
+        ws.cell(row=row_idx, column=14, value=tc.ai_quality_score)
+        ws.cell(row=row_idx, column=15, value=tc.last_execution_status or "")
+        ws.cell(row=row_idx, column=16, value=tags_text)
+        ws.cell(row=row_idx, column=17, value=tc.version)
+        ws.cell(row=row_idx, column=18, value=tc.created_at.strftime("%Y-%m-%d") if tc.created_at else "")
 
     # Auto-fit column widths
     for col in ws.columns:
@@ -162,7 +163,7 @@ async def export_test_plan_word(
 ):
     """Export a test plan to a Word (.docx) document."""
     from docx import Document
-    from docx.shared import Pt, RGBColor
+    from docx.shared import RGBColor
 
     plan = (await db.execute(select(TestPlan).where(TestPlan.id == plan_id))).scalar_one_or_none()
     if not plan:

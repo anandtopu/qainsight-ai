@@ -12,8 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, require_role
-
-logger = structlog.get_logger(__name__)
 from app.core.security import get_password_hash
 from app.db.postgres import get_db
 from app.models.postgres import Project, ProjectMember, User, UserInvitation, UserRole
@@ -29,6 +27,8 @@ from app.models.schemas import (
     UpdateUserStatusRequest,
     UserListResponse,
 )
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["User Management"])
 projects_router = APIRouter(prefix="/api/v1/projects", tags=["User Management"])
