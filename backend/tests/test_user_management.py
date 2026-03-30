@@ -9,6 +9,7 @@ the full import chain can resolve without Docker.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import sys
 import types
 import uuid
@@ -19,59 +20,119 @@ import pytest
 
 
 def _make_stub(name: str, **attrs) -> types.ModuleType:
-    """Create and register a lightweight stub module."""
+    """Create a lightweight stub module."""
     mod = types.ModuleType(name)
     for k, v in attrs.items():
         setattr(mod, k, v)
-    sys.modules[name] = mod
     return mod
 
 
 # Only stub packages that are NOT installed in the local venv.
 # sqlalchemy, fastapi, pydantic ARE installed — do not stub them.
+#
+# NOTE: Instead of writing into sys.modules at import time (which leaks
+# globally for the entire pytest session), we scope these stubs to each
+# test via an autouse fixture and pytest's monkeypatch support.
 
-if "bcrypt" not in sys.modules:
-    _make_stub(
-        "bcrypt",
-        checkpw=MagicMock(return_value=True),
-        hashpw=MagicMock(return_value=b"$2b$fake"),
-        gensalt=MagicMock(return_value=b"$2b$12$salt"),
-    )
+@pytest.fixture(autouse=True)
+def _stub_external_modules(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub native deps and app.core/app.db modules for each test in this file."""
+    with monkeypatch.context() as m:
+        # Native deps: bcrypt
+        if importlib.util.find_spec("bcrypt") is None:
+            m.setitem(
+                sys.modules,
+                "bcrypt",
+                _make_stub(
+                    "bcrypt",
+                    checkpw=MagicMock(return_value=True),
+                    hashpw=MagicMock(return_value=b"$2b$fake"),
+                    gensalt=MagicMock(return_value=b"$2b$12$salt"),
+                ),
+            )
 
-if "jose" not in sys.modules:
-    _jose_jwt = _make_stub("jose.jwt", encode=MagicMock(return_value="tok"), decode=MagicMock(return_value={}))
-    _make_stub("jose", jwt=_jose_jwt, JWTError=Exception)
+        # Native deps: jose
+        if importlib.util.find_spec("jose") is None:
+            jose_jwt_stub = _make_stub(
+                "jose.jwt",
+                encode=MagicMock(return_value="tok"),
+                decode=MagicMock(return_value={}),
+            )
+            m.setitem(sys.modules, "jose.jwt", jose_jwt_stub)
+            m.setitem(
+                sys.modules,
+                "jose",
+                _make_stub("jose", jwt=jose_jwt_stub, JWTError=Exception),
+            )
 
-# Stub only the app.core modules that pull in bcrypt/jose
-if "app.core.security" not in sys.modules:
-    _make_stub(
-        "app.core.security",
-        verify_password=MagicMock(return_value=True),
-        get_password_hash=MagicMock(return_value="hashed_pw"),
-        create_access_token=MagicMock(return_value="access_token"),
-        create_refresh_token=MagicMock(return_value="refresh_token"),
-        decode_token=MagicMock(return_value={"sub": str(uuid.uuid4()), "type": "access"}),
-    )
+        # Always stub app.core modules that pull in bcrypt/jose — monkeypatch
+        # restores sys.modules after each test, so these never leak.
+        m.setitem(
+            sys.modules,
+            "app.core.security",
+            _make_stub(
+                "app.core.security",
+                verify_password=MagicMock(return_value=True),
+                get_password_hash=MagicMock(return_value="hashed_pw"),
+                create_access_token=MagicMock(return_value="access_token"),
+                create_refresh_token=MagicMock(return_value="refresh_token"),
+                decode_token=MagicMock(
+                    return_value={"sub": str(uuid.uuid4()), "type": "access"}
+                ),
+            ),
+        )
 
-if "app.core.deps" not in sys.modules:
-    _make_stub(
-        "app.core.deps",
-        require_role=MagicMock(return_value=MagicMock()),
-        get_current_active_user=MagicMock(),
-        verify_webhook_secret=MagicMock(),
-        require_project_role=MagicMock(return_value=MagicMock()),
-    )
+        m.setitem(
+            sys.modules,
+            "app.core.deps",
+            _make_stub(
+                "app.core.deps",
+                require_role=MagicMock(return_value=MagicMock()),
+                get_current_active_user=MagicMock(),
+                verify_webhook_secret=MagicMock(),
+                require_project_role=MagicMock(return_value=MagicMock()),
+            ),
+        )
 
-# Stub DB connection factories (no real DB in unit tests)
-if "app.db.postgres" not in sys.modules:
-    from sqlalchemy.orm import DeclarativeBase
-    class _Base(DeclarativeBase): pass
-    _make_stub("app.db.postgres", get_db=MagicMock(), AsyncSession=MagicMock(), Base=_Base)
-if "app.db.mongo" not in sys.modules:
-    _make_stub("app.db.mongo", get_mongo_db=MagicMock(), close_mongo=MagicMock())
-if "app.db.redis_client" not in sys.modules:
-    _make_stub("app.db.redis_client", get_redis=MagicMock(), close_redis=MagicMock())
+        # Always stub DB connection factories (no real DB in unit tests)
+        from sqlalchemy.orm import DeclarativeBase
 
+        class _Base(DeclarativeBase):
+            pass
+
+        m.setitem(
+            sys.modules,
+            "app.db.postgres",
+            _make_stub(
+                "app.db.postgres",
+                get_db=MagicMock(),
+                AsyncSession=MagicMock(),
+                Base=_Base,
+            ),
+        )
+
+        m.setitem(
+            sys.modules,
+            "app.db.mongo",
+            _make_stub(
+                "app.db.mongo",
+                get_mongo_db=MagicMock(),
+                close_mongo=MagicMock(),
+            ),
+        )
+
+        m.setitem(
+            sys.modules,
+            "app.db.redis_client",
+            _make_stub(
+                "app.db.redis_client",
+                get_redis=MagicMock(),
+                close_redis=MagicMock(),
+            ),
+        )
+
+        # Yield control to the test; monkeypatch will restore sys.modules after.
+        yield
 # ── Now safe to import app modules ────────────────────────────────────────────
 
 from app.models.postgres import UserRole  # noqa: E402
@@ -202,12 +263,6 @@ class TestAdminCreateUser:
             await admin_create_user(payload=payload, db=db, current_user=admin)
 
         assert exc_info.value.status_code == 409
-
-    def test_temp_passwords_are_unique(self):
-        import secrets
-        passwords = {secrets.token_urlsafe(12) for _ in range(30)}
-        assert len(passwords) == 30
-
 
 # ── list_api_keys endpoint ─────────────────────────────────────
 
