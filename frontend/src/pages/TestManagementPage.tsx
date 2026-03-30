@@ -1174,6 +1174,9 @@ function LinkSuiteModal({ planId, projectId, onClose, onLinked }: LinkSuiteModal
   const [loadingSuites, setLoadingSuites] = useState(true)
 
   useEffect(() => {
+    setLoadingSuites(true)
+    setSelectedSuite('')
+    setSuites([])
     testManagementService.listSuites(projectId)
       .then(setSuites)
       .catch(() => toast.error('Failed to load suites'))
@@ -1734,6 +1737,8 @@ function TestSuitesTab({ projectId }: TestSuitesTabProps) {
 
   useEffect(() => {
     setLoading(true)
+    setSuiteCases({})
+    setExpandedSuite(null)
     testManagementService.listSuites(projectId)
       .then(setSuites)
       .catch(() => toast.error('Failed to load test suites'))

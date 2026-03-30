@@ -9,6 +9,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user
@@ -29,6 +30,7 @@ async def export_test_cases_excel(
     test_type: Optional[str] = None,
     priority: Optional[str] = None,
     search: Optional[str] = None,
+    limit: int = Query(5000, ge=1, le=10000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -57,7 +59,7 @@ async def export_test_cases_excel(
         ManagedTestCase.steps,
         ManagedTestCase.version,
         ManagedTestCase.created_at,
-    ).order_by(ManagedTestCase.created_at.desc())
+    ).order_by(ManagedTestCase.created_at.desc()).limit(limit)
     if project_id:
         stmt = stmt.where(ManagedTestCase.project_id == project_id)
     if status:
@@ -576,7 +578,7 @@ async def list_test_suites(
     """)
     try:
         manual_rows = (await db.execute(manual_query, auto_params)).fetchall()
-    except Exception as exc:
+    except (ProgrammingError, OperationalError) as exc:
         logger.warning("managed_test_cases.suite_name not available, skipping manual suites", error=str(exc))
         await db.rollback()
         manual_rows = []
@@ -658,7 +660,15 @@ async def get_suite_test_cases(
     if project_id:
         manual_stmt = manual_stmt.where(ManagedTestCase.project_id == project_id)
 
-    manual_cases = (await db.execute(manual_stmt)).scalars().all()
+    try:
+        manual_cases = (await db.execute(manual_stmt)).scalars().all()
+    except (ProgrammingError, OperationalError) as exc:
+        logger.warning(
+            "managed_test_cases.suite_name not available, returning automation-only results",
+            error=str(exc),
+        )
+        await db.rollback()
+        manual_cases = []
 
     result = []
     for tc in auto_cases:
