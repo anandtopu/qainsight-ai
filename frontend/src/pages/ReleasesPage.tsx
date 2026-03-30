@@ -491,16 +491,12 @@ export default function ReleasesPage() {
   const activeProjectId = useProjectStore(s => s.activeProjectId)
   const isAllProjects = activeProjectId === ALL_PROJECTS_ID
 
-  if (!project) {
+  if (!project && !isAllProjects) {
     return (
       <EmptyState
         icon={<Package className="h-10 w-10" />}
-        title={isAllProjects ? 'Select a specific project' : 'No project selected'}
-        description={
-          isAllProjects
-            ? 'Releases are managed per project — select a specific project from the top bar'
-            : 'Select a project from the top bar'
-        }
+        title="No project selected"
+        description="Select a project from the top bar"
       />
     )
   }
@@ -511,7 +507,7 @@ export default function ReleasesPage() {
 
   return (
     <>
-      {showModal && projectId && (
+      {showModal && projectId && !isAllProjects && (
         <ReleaseModal
           projectId={projectId}
           initial={editRelease}
@@ -523,7 +519,7 @@ export default function ReleasesPage() {
       <div className="space-y-6">
         <PageHeader
           title="Releases"
-          subtitle={`Manage releases and track QA progress for ${project.name}`}
+          subtitle={isAllProjects ? 'All releases across all projects' : `Manage releases and track QA progress for ${project!.name}`}
           actions={
             <div className="flex items-center gap-2">
               {/* Status filter */}
@@ -541,12 +537,14 @@ export default function ReleasesPage() {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => { setEditRelease(undefined); setShowModal(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium"
-              >
-                <Plus className="h-4 w-4" /> New Release
-              </button>
+              {!isAllProjects && (
+                <button
+                  onClick={() => { setEditRelease(undefined); setShowModal(true) }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium"
+                >
+                  <Plus className="h-4 w-4" /> New Release
+                </button>
+              )}
             </div>
           }
         />
@@ -557,15 +555,15 @@ export default function ReleasesPage() {
           <EmptyState
             icon={<Package className="h-8 w-8" />}
             title="No releases yet"
-            description="Create your first release to start tracking QA progress"
-            action={
+            description={isAllProjects ? 'No releases exist across any project yet' : 'Create your first release to start tracking QA progress'}
+            action={!isAllProjects ? (
               <button
                 onClick={() => setShowModal(true)}
                 className="mt-4 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium mx-auto"
               >
                 <Plus className="h-4 w-4" /> Create Release
               </button>
-            }
+            ) : undefined}
           />
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -601,6 +599,11 @@ export default function ReleasesPage() {
                           </span>
                         )}
                         <StatusBadge status={release.status} />
+                        {isAllProjects && release.project_name && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-slate-300 ring-1 ring-inset ring-slate-600">
+                            {release.project_name}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 mt-0.5 text-xs text-slate-500">
                         {release.planned_date && (

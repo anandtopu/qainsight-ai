@@ -6,6 +6,7 @@ from app.routers import (
     test_management_ai,
     test_management_audit,
     test_management_cases,
+    test_management_exports,
     test_management_plans,
     test_management_strategies,
 )
@@ -17,3 +18,4 @@ router.include_router(test_management_ai.router)
 router.include_router(test_management_plans.router)
 router.include_router(test_management_strategies.router)
 router.include_router(test_management_audit.router)
+router.include_router(test_management_exports.router)

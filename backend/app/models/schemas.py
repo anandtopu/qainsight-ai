@@ -456,6 +456,7 @@ class ManagedTestCaseCreate(BaseModel):
     priority: str = "medium"
     severity: str = "major"
     feature_area: Optional[str] = None
+    suite_name: Optional[str] = None
     tags: Optional[List[str]] = None
     estimated_duration_minutes: Optional[int] = None
     is_automated: bool = False
@@ -474,6 +475,7 @@ class ManagedTestCaseUpdate(BaseModel):
     priority: Optional[str] = None
     severity: Optional[str] = None
     feature_area: Optional[str] = None
+    suite_name: Optional[str] = None
     tags: Optional[List[str]] = None
     estimated_duration_minutes: Optional[int] = None
     is_automated: Optional[bool] = None
@@ -495,6 +497,7 @@ class ManagedTestCaseResponse(BaseModel):
     priority: str
     severity: str
     feature_area: Optional[str] = None
+    suite_name: Optional[str] = None
     tags: Optional[List[Any]] = None
     status: str
     version: int

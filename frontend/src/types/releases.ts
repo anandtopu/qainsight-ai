@@ -19,6 +19,7 @@ export interface ReleasePhase {
 export interface Release {
   id: string
   project_id: string
+  project_name?: string | null
   name: string
   version: string | null
   description: string | null

@@ -610,6 +610,7 @@ class ManagedTestCase(Base):
     priority: Mapped[str] = mapped_column(String(20), default="medium")       # critical|high|medium|low
     severity: Mapped[str] = mapped_column(String(20), default="major")        # blocker|critical|major|minor|trivial
     feature_area: Mapped[Optional[str]] = mapped_column(String(500))
+    suite_name: Mapped[Optional[str]] = mapped_column(String(500))            # Optional suite grouping
     tags: Mapped[Optional[list]] = mapped_column(JSON)              # list[str]
 
     # Lifecycle state machine

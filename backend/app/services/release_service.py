@@ -4,12 +4,15 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+import structlog
 from fastapi import HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.postgres import Release, ReleasePhase, ReleaseTestRunLink, TestRun
+from app.models.postgres import Project, Release, ReleasePhase, ReleaseTestRunLink, TestRun
+
+logger = structlog.get_logger(__name__)
 
 
 def serialize_model(obj) -> dict:
@@ -60,11 +63,21 @@ async def list_releases(db: AsyncSession, project_id: Optional[str], status: Opt
         stmt = stmt.where(Release.status == status)
     rows = (await db.execute(stmt)).scalars().all()
 
+    # Build project_name lookup when returning all-projects (no project filter)
+    project_name_map: dict[str, str] = {}
+    if not project_id and rows:
+        project_ids = list({str(r.project_id) for r in rows})
+        proj_result = await db.execute(
+            select(Project).where(Project.id.in_([uuid.UUID(pid) for pid in project_ids]))
+        )
+        project_name_map = {str(p.id): p.name for p in proj_result.scalars().all()}
+
     items = []
     for release in rows:
         item = serialize_model(release)
         item["phases"] = [serialize_model(phase) for phase in release.phases]
         item["test_run_count"] = 0
+        item["project_name"] = project_name_map.get(item["project_id"])
         items.append(item)
 
     if items:
@@ -86,6 +99,7 @@ async def list_releases(db: AsyncSession, project_id: Optional[str], status: Opt
 
 
 async def create_release(db: AsyncSession, body) -> dict:
+    logger.info("creating_release", project_id=body.project_id, name=body.name)
     release = Release(
         project_id=uuid.UUID(body.project_id),
         name=body.name,
@@ -122,6 +136,7 @@ async def create_release(db: AsyncSession, body) -> dict:
 
 
 async def get_release_details(db: AsyncSession, release_id: str) -> dict:
+    logger.debug("fetching_release_details", release_id=release_id)
     stmt = (
         select(Release)
         .where(Release.id == uuid.UUID(release_id))

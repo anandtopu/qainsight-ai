@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Key, Plus, RefreshCw, Shield, Trash2, UserCheck, UserPlus, UserX, Users } from 'lucide-react'
+import { FolderOpen, Key, Plus, RefreshCw, Shield, Trash2, UserCheck, UserPlus, UserX, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useUsers, useApiKeys, refreshUsers, refreshApiKeys } from '@/hooks/useUserManagement'
 import { userManagementService, type UserRole } from '@/services/userManagementService'
 import { usePermissions } from '@/hooks/usePermissions'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { ProjectMembersTab } from './ProjectMembersTab'
 
 const ROLES: UserRole[] = ['VIEWER', 'TESTER', 'QA_ENGINEER', 'QA_LEAD', 'ADMIN']
 
@@ -17,43 +18,38 @@ const ROLE_COLORS: Record<UserRole, string> = {
 }
 
 export default function UserManagementPage() {
-  const [tab, setTab] = useState<'users' | 'apikeys'>('users')
+  const [tab, setTab] = useState<'users' | 'apikeys' | 'project-members'>('users')
   const { canManageUsers, canGenerateApiKeys, isAdmin } = usePermissions()
+
+  const tabClass = (t: typeof tab) =>
+    `px-4 py-2 text-sm font-medium transition-colors ${
+      tab === t ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'
+    }`
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-100">User Management</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Manage users, roles, and API access keys</p>
+          <p className="text-sm text-slate-400 mt-0.5">Manage users, roles, project access, and API keys</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-700">
-        <button
-          onClick={() => setTab('users')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === 'users'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
+        <button onClick={() => setTab('users')} className={tabClass('users')}>
           <span className="flex items-center gap-2"><Users className="h-4 w-4" /> Users</span>
         </button>
-        <button
-          onClick={() => setTab('apikeys')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === 'apikeys'
-              ? 'text-blue-400 border-b-2 border-blue-400'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
+        <button onClick={() => setTab('project-members')} className={tabClass('project-members')}>
+          <span className="flex items-center gap-2"><FolderOpen className="h-4 w-4" /> Project Access</span>
+        </button>
+        <button onClick={() => setTab('apikeys')} className={tabClass('apikeys')}>
           <span className="flex items-center gap-2"><Key className="h-4 w-4" /> API Keys</span>
         </button>
       </div>
 
       {tab === 'users' && <UsersTab canManageUsers={canManageUsers} isAdmin={isAdmin} />}
+      {tab === 'project-members' && <ProjectMembersTab isAdmin={isAdmin} canManageUsers={canManageUsers} />}
       {tab === 'apikeys' && <ApiKeysTab canGenerateApiKeys={canGenerateApiKeys} />}
     </div>
   )

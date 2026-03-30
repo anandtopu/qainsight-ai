@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Download, Mail, Plus, Settings2, TrendingUp, X,
 } from 'lucide-react'
@@ -351,49 +351,14 @@ export default function TrendsPage() {
   const [enabledCharts, setEnabled] = useState<string[]>(loadEnabledCharts)
   const [showPicker, setShowPicker] = useState(false)
   const [showEmail, setShowEmail]   = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const project   = useProjectStore(s => s.activeProject)
   const projectId = useProjectStore(s => s.activeProjectId)
   const isAllProjects = projectId === ALL_PROJECTS_ID
   const { data: trends, isLoading } = useTrendData(days)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { saveEnabledCharts(enabledCharts) }, [enabledCharts])
-
-  // beforeprint fires at exactly the right moment — before the browser renders
-  // the print layout. We set explicit pixel widths on Recharts SVGs so they
-  // don't collapse to 0 when @media print reflows the page.
-  useEffect(() => {
-    function onBeforePrint() {
-      document.querySelectorAll<HTMLElement>('.recharts-responsive-container').forEach(el => {
-        el.dataset.printOrigW = el.style.width
-        el.style.width = `${PRINT_CHART_WIDTH}px`
-        el.style.minWidth = `${PRINT_CHART_WIDTH}px`
-      })
-      document.querySelectorAll<SVGElement>('.recharts-surface').forEach(svg => {
-        svg.dataset.printOrigW = svg.getAttribute('width') ?? ''
-        svg.setAttribute('width', String(PRINT_CHART_WIDTH))
-      })
-    }
-    function onAfterPrint() {
-      document.querySelectorAll<HTMLElement>('.recharts-responsive-container').forEach(el => {
-        el.style.width = el.dataset.printOrigW ?? ''
-        el.style.minWidth = ''
-        delete el.dataset.printOrigW
-      })
-      document.querySelectorAll<SVGElement>('.recharts-surface').forEach(svg => {
-        const orig = svg.dataset.printOrigW ?? ''
-        if (orig) svg.setAttribute('width', orig)
-        else svg.removeAttribute('width')
-        delete svg.dataset.printOrigW
-      })
-      window.dispatchEvent(new Event('resize'))
-    }
-    window.addEventListener('beforeprint', onBeforePrint)
-    window.addEventListener('afterprint', onAfterPrint)
-    return () => {
-      window.removeEventListener('beforeprint', onBeforePrint)
-      window.removeEventListener('afterprint', onAfterPrint)
-    }
-  }, [])
 
   function toggleChart(id: string) {
     setEnabled(prev =>
@@ -405,10 +370,45 @@ export default function TrendsPage() {
     setEnabled(prev => prev.filter(c => c !== id))
   }
 
-  function handlePrint() {
-    // beforeprint/afterprint handlers (registered in useEffect above)
-    // set explicit SVG dimensions at the right moment — just call print directly.
-    window.print()
+  async function handleExportPdf() {
+    if (!contentRef.current) return
+    setExportingPdf(true)
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas'),
+      ])
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#0f172a',
+        logging: false,
+        windowWidth: contentRef.current.scrollWidth,
+        windowHeight: contentRef.current.scrollHeight,
+      })
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' })
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+      const ratio = pdfWidth / imgWidth
+      const scaledHeight = imgHeight * ratio
+      let yOffset = 0
+      while (yOffset < scaledHeight) {
+        if (yOffset > 0) pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, -yOffset, pdfWidth, scaledHeight)
+        yOffset += pdfHeight
+      }
+      const projectLabel = isAllProjects ? 'All-Projects' : (project?.name ?? 'QA')
+      pdf.save(`QA-Insight-Trends-${projectLabel}-${days}d.pdf`)
+      toast.success('PDF exported successfully')
+    } catch (err) {
+      console.error('PDF export failed', err)
+      toast.error('PDF export failed — please try again')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   if (!project && !isAllProjects) {
@@ -445,7 +445,7 @@ export default function TrendsPage() {
         <EmailModal onClose={() => setShowEmail(false)} projectId={projectId} days={days} enabledCharts={enabledCharts} />
       )}
 
-      <div className="space-y-6 print:space-y-4">
+      <div ref={contentRef} className="space-y-6 print:space-y-4">
         <PageHeader
           title="Trends"
           subtitle={`Historical trends for ${projectLabel}`}
@@ -476,11 +476,12 @@ export default function TrendsPage() {
               </button>
               {/* Export PDF */}
               <button
-                onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+                onClick={handleExportPdf}
+                disabled={exportingPdf}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Download className="h-3.5 w-3.5" />
-                Export PDF
+                {exportingPdf ? <LoadingSpinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                {exportingPdf ? 'Exporting…' : 'Export PDF'}
               </button>
               {/* Email */}
               <button
