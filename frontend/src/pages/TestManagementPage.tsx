@@ -1756,11 +1756,20 @@ function TestSuitesTab({ projectId }: TestSuitesTabProps) {
   }
 
   const CASE_STATUS_COLORS: Record<string, string> = {
+    // lowercase variants
     passed:  'text-green-400',
     failed:  'text-red-400',
     error:   'text-red-400',
+    broken:  'text-red-400',
     skipped: 'text-slate-400',
     pending: 'text-amber-400',
+    // uppercase variants as returned by the backend
+    PASSED:  'text-green-400',
+    FAILED:  'text-red-400',
+    ERROR:   'text-red-400',
+    BROKEN:  'text-red-400',
+    SKIPPED: 'text-slate-400',
+    PENDING: 'text-amber-400',
   }
 
   if (loading) return <div className="flex items-center justify-center h-48"><LoadingSpinner size="lg" /></div>
