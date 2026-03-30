@@ -328,6 +328,7 @@ function SmtpConfigCard() {
   const [port, setPort] = useState(587)
   const [user, setUser] = useState('')
   const [password, setPassword] = useState('')
+  const [clearPassword, setClearPassword] = useState(false)
   const [fromAddress, setFromAddress] = useState('noreply@qainsight.io')
   const [implicitTls, setImplicitTls] = useState(true)
   const [passwordSet, setPasswordSet] = useState(false)
@@ -350,10 +351,15 @@ function SmtpConfigCard() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      // password !== '' → use the new value
+      // password === '' && clearPassword → send "" to explicitly clear the stored password
+      // password === '' && !clearPassword → send null to keep the existing password
       const passwordPayload =
         password !== ''
           ? password
-          : null
+          : clearPassword
+            ? ''
+            : null
 
       const updated = await appSettingsService.updateSmtpConfig({
         enabled,
@@ -366,6 +372,7 @@ function SmtpConfigCard() {
       })
       setPasswordSet(updated.password_set)
       setPassword('')
+      setClearPassword(false)
       toast.success('SMTP configuration saved')
     } catch {
       toast.error('Failed to save SMTP configuration')
@@ -480,15 +487,18 @@ function SmtpConfigCard() {
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
                 Password{' '}
                 <span className="text-slate-600">
-                  {passwordSet ? '(stored — leave blank to keep)' : '(optional)'}
+                  {passwordSet && !clearPassword ? '(stored — leave blank to keep)' : '(optional)'}
                 </span>
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder={passwordSet ? '••••••••' : 'Enter password'}
+                  onChange={e => {
+                    setPassword(e.target.value)
+                    setClearPassword(false)
+                  }}
+                  placeholder={passwordSet && !clearPassword ? '••••••••' : 'Enter password'}
                   className="input w-full text-sm pr-10"
                 />
                 <button
@@ -499,6 +509,31 @@ function SmtpConfigCard() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {passwordSet && password === '' && (
+                <div className="mt-1.5">
+                  {clearPassword ? (
+                    <span className="text-xs text-amber-400 flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" />
+                      Password will be cleared on save.{' '}
+                      <button
+                        type="button"
+                        onClick={() => setClearPassword(false)}
+                        className="underline hover:text-amber-300"
+                      >
+                        Undo
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setClearPassword(true)}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      Clear stored password
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* From address */}
